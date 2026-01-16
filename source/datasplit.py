@@ -2,12 +2,16 @@ import os
 import pandas as pd
 from glob import glob
 from sklearn.model_selection import train_test_split
+from pathlib import Path
 
 SEED = 10
 
 def seg_split(img_dir, mask_dir, out_dir, labeled_ratio=(), test_val_split=0.3, img_ext='', mask_ext=''):
-    X = sorted(glob(os.path.join(img_dir, f'*{img_ext}')))
-    y = sorted(glob(os.path.join(mask_dir, f'*{mask_ext}')))
+    X = sorted(list(Path(img_dir).glob(f'*{img_ext}')))
+    y = sorted(list(Path(mask_dir).glob(f'*{mask_ext}')))
+
+    X = [p.name for p in X]
+    y = [p.name for p in y]
 
     assert len(X) == len(y)
 

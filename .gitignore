@@ -5,3 +5,4 @@ env/
 
 # Ignore the dataset folder
 dataset/
+pretrained/

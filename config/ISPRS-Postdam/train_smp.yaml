@@ -1,0 +1,25 @@
+# Example config for training with segmentation-models-pytorch
+
+# arguments for dataset
+dataset: ISPRSPostdam
+nclass: 6
+crop_size: 256
+use_albumentations: true  # Use SupervisedDataset with albumentations
+
+# arguments for training
+epochs: 60
+batch_size: 8  # Can use larger batch with smaller models
+lr: 0.0001
+lr_multi: 10.0
+criterion:
+  name: CELoss
+  kwargs:
+    ignore_index: 255
+conf_thresh: 0.95
+eval_mode: sliding_window
+
+# arguments for model
+model: unet++  # Options: unet, unet++, deeplabv3, deeplabv3+, fpn, pspnet, pan, linknet, manet, dpt
+backbone: efficientnet-b4  # Options: resnet50, efficientnet-b4, mobilenet_v2, etc. (see smp docs)
+pretrained: true  # Use ImageNet pretrained weights
+lock_backbone: false  # Train encoder

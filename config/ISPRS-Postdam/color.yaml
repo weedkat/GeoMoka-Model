@@ -1,0 +1,18 @@
+0: 
+  name: Background
+  rgb : [255, 0, 0]
+1:
+  name: Impervious surfaces
+  rgb : [255, 255, 255]
+2:
+  name: Building
+  rgb : [0, 0, 255]
+3:
+  name: Low vegetation
+  rgb : [0, 255, 255]
+4:
+  name: Tree
+  rgb : [0, 255, 0]
+5:
+  name: Car
+  rgb : [255, 255, 0]

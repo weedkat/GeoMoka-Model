@@ -1,0 +1,29 @@
+# arguments for dataset
+dataset: ISPRS-Postdam
+in_channels: 3
+nclass: 6
+crop_size: 252
+nsample: 3000
+root_dir: dataset/ISPRS-Postdam
+train_split: dataset/ISPRS-Postdam/splits/train.csv
+val_split: dataset/ISPRS-Postdam/splits/val.csv
+class_dict: config/ISPRS-Postdam/color.yaml
+
+# arguments for training
+epochs: 60
+batch_size: 2 # per GPU x 4 GPUs
+lr: 0.000005
+lr_multi: 40.0
+criterion:
+  name: CELoss
+  kwargs:
+    ignore_index: 255
+    # thresh: 0.7
+    # min_kept: 200000
+conf_thresh: 0.95
+eval_mode: sliding_window
+
+# arguments for model
+model: dpt
+backbone: dinov2_base
+lock_backbone: False

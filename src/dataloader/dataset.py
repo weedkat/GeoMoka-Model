@@ -16,17 +16,15 @@ warnings.filterwarnings('ignore', category=NotGeoreferencedWarning)
 # Get the project root (two levels up from this file: src/dataloader/ISPRSPostdam.py)
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 
-ROOT_DIR  = f"{PROJECT_ROOT}/dataset/ISPRS-Postdam"
-CLASS_DICT = f"{PROJECT_ROOT}/config/ISPRS-Postdam/color.yaml"
-
 # The mask output for standardized dataset is in range [0, num_classes-1], compatible with CrossEntropyLoss
 class ISPRSPostdam(Dataset):
-    def __init__(self, data_csv, root_dir=ROOT_DIR, class_dict=None):
+    def __init__(self, data_csv, 
+                 root_dir=f"{PROJECT_ROOT}/dataset/ISPRS-Postdam", 
+                 class_dict=f"{PROJECT_ROOT}/config/ISPRS-Postdam/color.yaml"):
         self.df = pd.read_csv(data_csv)
         self.img_dir = Path(root_dir) / 'patches' / 'Images'
         self.mask_dir = Path(root_dir) / 'patches' / 'Labels'
         
-        class_dict = class_dict or CLASS_DICT
         class_dict = yaml.safe_load(open(str(class_dict), 'r'))
         self.mc = utils.MaskConverter(class_dict)
 

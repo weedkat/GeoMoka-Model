@@ -30,6 +30,7 @@ class SegmentationInference:
         device: str = 'auto',
         patch_size: int = 14,
         overlap_ratio: float = 0.5,
+        load_messages: bool = True,
     ):
         self.model = model
         self.patch_size = patch_size
@@ -51,8 +52,9 @@ class SegmentationInference:
         self.img_mean = [0.485, 0.456, 0.406]
         self.img_std = [0.229, 0.224, 0.225]
         
-        print(f'[Inference] Model loaded on {self.device}')
-        print(f'[Inference] Num classes: {self.num_classes}')
+        if load_messages:
+            print(f'[Inference] Model loaded on {self.device}')
+            print(f'[Inference] Num classes: {self.num_classes}')
     
     def __call__(
         self,
@@ -279,5 +281,5 @@ def infer_single_image(
         Prediction and metadata (optionally with confidence scores)
     """
     image = Image.open(image_path)
-    inferencer = SegmentationInference(model)
+    inferencer = SegmentationInference(model, load_messages=False)
     return inferencer(image, mode=mode, return_confidence=return_confidence)

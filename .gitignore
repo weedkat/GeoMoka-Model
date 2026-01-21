@@ -3,7 +3,10 @@ venv/
 .venv/
 env/
 
-# Ignore the dataset folder
+# Ignore large folder
 dataset/
 pretrained/
 checkpoints/
+
+# Ignore Python cache files
+__pycache__/

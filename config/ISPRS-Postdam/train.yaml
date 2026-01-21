@@ -27,3 +27,4 @@ eval_mode: sliding_window
 model: dpt
 backbone: dinov2_base
 lock_backbone: False
+model_name: dpt_dinov2_base_isprs_postdam

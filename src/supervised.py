@@ -16,9 +16,7 @@ from torch.utils.tensorboard import SummaryWriter
 import yaml
 from tqdm import tqdm
 
-from dataloader.semi import SemiDataset
-from dataloader.supervised import SupervisedDataset
-from model.semseg.dpt import DPT
+from dataloader.wrapper import SemiDataset, SupervisedDataset
 from evaluate import inference_evaluate
 from util.ohem import ProbOhemCrossEntropy2d
 from util.utils import count_params, AverageMeter, init_log
@@ -35,7 +33,6 @@ def train_fn(model, loader, optimizer, criterion, epoch, cfg, writer=None, logge
     all_preds = []
     all_targets = []
 
-    iters = 0
     total_iters = len(loader) * cfg['epochs']
 
     pbar = tqdm(enumerate(loader), total=len(loader), desc=f'Epoch {epoch}')
@@ -56,9 +53,10 @@ def train_fn(model, loader, optimizer, criterion, epoch, cfg, writer=None, logge
             all_preds.append(pred_labels.cpu().numpy())
             all_targets.append(mask.cpu().numpy())
 
-        # Decay learning rate
-        iters = epoch * len(loader) + i
-        lr = cfg['lr'] * (1 - iters / total_iters) ** 0.9
+        # Decay learning rate using zero-based global step and clamped base
+        global_step = (epoch - 1) * len(loader) + i
+        decay_base = max(0.0, 1.0 - (global_step / float(total_iters)))
+        lr = float(cfg['lr']) * (decay_base ** 0.9)
         optimizer.param_groups[0]["lr"] = lr
         optimizer.param_groups[1]["lr"] = lr * cfg['lr_multi']
         
@@ -66,11 +64,11 @@ def train_fn(model, loader, optimizer, criterion, epoch, cfg, writer=None, logge
         pbar.set_postfix({'loss': f'{total_loss.avg:.3f}', 'lr': f'{lr:.6f}'})
         
         if writer:
-            writer.add_scalar('train/loss_all', loss.item(), iters)
-            writer.add_scalar('train/loss_x', loss.item(), iters)
+            writer.add_scalar('train/loss_all', loss.item(), global_step)
+            writer.add_scalar('train/loss_x', loss.item(), global_step)
             
         if logger and (i % max(1, len(loader) // 8) == 0):
-            logger.info(f'Iters: {i}, Total loss: {total_loss.avg:.3f}')
+            logger.info(f'Iters: {global_step}, Total loss: {total_loss.avg:.3f}')
     
     # Calculate and log training metrics
     if writer and all_preds and all_targets:
@@ -101,18 +99,20 @@ def train_fn(model, loader, optimizer, criterion, epoch, cfg, writer=None, logge
     torch.cuda.empty_cache()
 
 
-def train(args, cfg, train_ds, val_ds):
+def train(cfg, train_ds, val_ds):
+    save_path = os.path.join('checkpoints', cfg['model_name'])
+    os.makedirs(save_path, exist_ok=True)
+
     # ====================== logger =========================
-    os.makedirs(args.save_path, exist_ok=True)
     logger = init_log(
         name='global',
         level=logging.INFO,
-        log_file=os.path.join(args.save_path, 'training.log'),
+        log_file=os.path.join(save_path, 'training.log'),
         add_console=False,
         rank_filter=True,
     )
 
-    all_args = {**cfg, **vars(args), 'ngpus': 1}
+    all_args = {**cfg, 'ngpus': 1}
     
     # Print config to console
     print('\n' + '='*80)
@@ -122,7 +122,7 @@ def train(args, cfg, train_ds, val_ds):
     print('='*80 + '\n')
     
     logger.info('{}\n'.format(pprint.pformat(all_args)))
-    writer = SummaryWriter(args.save_path)
+    writer = SummaryWriter(save_path)
 
     # ====================== load model, optimizer, criterion, loader =========================
     cudnn.enabled = True
@@ -135,7 +135,7 @@ def train(args, cfg, train_ds, val_ds):
         in_channels=cfg['in_channels'],
         nclass=cfg['nclass'],
         pretrained=cfg.get('pretrained', True),
-        lock_backbone=cfg.get('lock_backbone', True)
+        lock_backbone=cfg.get('lock_backbone', False)
     ).cuda()
     
     # Setup optimizer with different learning rates for encoder and decoder
@@ -146,9 +146,7 @@ def train(args, cfg, train_ds, val_ds):
         encoder_params = model.backbone.parameters()
         decoder_params = [p for n, p in model.named_parameters() if 'backbone' not in n]
     else:
-        # Fallback: all params with same lr
-        encoder_params = []
-        decoder_params = model.parameters()
+        raise ValueError('Model does not have encoder/backbone attribute for optimizer setup.')
     
     optimizer = AdamW(
         [
@@ -191,8 +189,8 @@ def train(args, cfg, train_ds, val_ds):
     previous_best = 0.0
     start_epoch = 1
     
-    if os.path.exists(os.path.join(args.save_path, 'latest.pth')):
-        checkpoint = torch.load(os.path.join(args.save_path, 'latest.pth'), map_location='cpu', weights_only=False)
+    if os.path.exists(os.path.join(save_path, 'latest.pth')):
+        checkpoint = torch.load(os.path.join(save_path, 'latest.pth'), map_location='cpu', weights_only=False)
         model.load_state_dict(checkpoint['model'])
         optimizer.load_state_dict(checkpoint['optimizer'])
         start_epoch = checkpoint['epoch'] + 1
@@ -217,27 +215,15 @@ def train(args, cfg, train_ds, val_ds):
             class_names=None,
             device='cuda',
             verbose=True,
+            logger=logger,
             patch_size=cfg['crop_size']
         )
         
+        # Log to tensorboard
         miou = eval_results['miou']
         mean_dice = eval_results['mean_dice']
         overall_acc = eval_results['overall_accuracy']
         
-        # Print validation results to console
-        print(f'\n{"="*60}')
-        print(f'Epoch [{epoch}/{cfg["epochs"]}] Validation Results:')
-        print(f'  mIoU: {miou:.2f}% | Dice: {mean_dice:.2f}% | Acc: {overall_acc:.2f}%')
-        print(f'{"="*60}\n')
-        
-        logger.info(
-            f'Epoch [{epoch}/{cfg["epochs"]}] - '
-            f'mIoU: {miou:.2f}% | '
-            f'Dice: {mean_dice:.2f}% | '
-            f'Acc: {overall_acc:.2f}%'
-        )
-        
-        # Log to tensorboard
         writer.add_scalar('eval/mIoU', miou, epoch)
         writer.add_scalar('eval/mean_dice', mean_dice, epoch)
         writer.add_scalar('eval/overall_accuracy', overall_acc, epoch)
@@ -253,17 +239,16 @@ def train(args, cfg, train_ds, val_ds):
             'previous_best': previous_best,
         }
 
-        torch.save(checkpoint, os.path.join(args.save_path, 'latest.pth'))
+        torch.save(checkpoint, os.path.join(save_path, 'latest.pth'))
 
         if is_best:
-            torch.save(checkpoint, os.path.join(args.save_path, 'best.pth'))
+            torch.save(checkpoint, os.path.join(save_path, 'best.pth'))
             print(f'New best model saved with mIoU: {miou:.2f}%\n')
             logger.info(f'New best model saved with mIoU: {miou:.2f}%\n')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, required=True, help='config file path')
-    parser.add_argument('--save_path', type=str, required=True, help='path to save logs and models')
     parser.add_argument('--local_rank', type=int, default=0, help='local rank for distributed training')
     args = parser.parse_args()
 
@@ -272,4 +257,4 @@ if __name__ == '__main__':
     trainset = get_dataset(cfg['dataset'], cfg['train_split'], root_dir=cfg.get('root_dir'), class_dict=cfg.get('class_dict'))
     valset = get_dataset(cfg['dataset'], cfg['val_split'], root_dir=cfg.get('root_dir'), class_dict=cfg.get('class_dict'))
     
-    train(args, cfg, trainset, valset)
+    train(cfg, trainset, valset)

@@ -1,4 +1,4 @@
-from dataloader.ISPRSPostdam import ISPRSPostdam
+from dataloader.dataset import ISPRSPostdam
 
 dataset_map = {
     'ISPRS-Postdam': ISPRSPostdam,

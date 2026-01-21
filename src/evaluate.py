@@ -2,9 +2,39 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from typing import Dict, Tuple, Optional, List
+import logging
 from tqdm import tqdm
 
 from inference import SegmentationInference
+
+
+# ====================== Verbose Printing Helper ======================
+
+def format_evaluation_results(
+    results: Dict,
+    class_names: Optional[List[str]] = None
+) -> List[str]:
+    """
+    Format evaluation results into readable strings.
+    """
+    messages = []
+    
+    messages.append(f"\n{'='*50}")
+    messages.append("Evaluation Results:")
+    messages.append(f"{'='*50}")
+    messages.append(f"mIoU: {results['miou']:.2f}%")
+    messages.append(f"Mean Dice: {results['mean_dice']:.2f}%")
+    messages.append(f"Overall Accuracy: {results['overall_accuracy']:.2f}%")
+    messages.append(f"Mean Class Accuracy: {results['mean_class_accuracy']:.2f}%")
+    
+    messages.append("\nPer-class IoU:")
+    for cls_name, iou in results['per_class_iou'].items():
+        if not np.isnan(iou):
+            messages.append(f"  {cls_name}: {iou:.2f}%")
+    
+    messages.append(f"{'='*50}\n")
+    
+    return messages
 
 
 # ====================== Core Metric Functions ======================
@@ -232,7 +262,8 @@ def evaluate(
     num_classes: int,
     ignore_index: int = 255,
     class_names: Optional[List[str]] = None,
-    verbose: bool = False
+    verbose: bool = False,
+    logger: Optional[logging.Logger] = None
 ) -> Dict:
     """
     Compute all evaluation metrics from predictions and targets.
@@ -243,7 +274,8 @@ def evaluate(
         num_classes: Number of classes
         ignore_index: Label to ignore in evaluation
         class_names: Optional list of class names
-        verbose: Print detailed results
+        verbose: Print detailed results to console
+        logger: Optional logger instance for logging results
         
     Returns:
         Dictionary containing all metrics:
@@ -274,22 +306,18 @@ def evaluate(
         **accuracy_metrics
     }
     
-    if verbose:
-        print(f"\n{'='*50}")
-        print(f"Evaluation Results:")
-        print(f"{'='*50}")
-        print(f"mIoU: {results['miou']:.2f}%")
-        print(f"Mean Dice: {results['mean_dice']:.2f}%")
-        print(f"Overall Accuracy: {results['overall_accuracy']:.2f}%")
-        print(f"Mean Class Accuracy: {results['mean_class_accuracy']:.2f}%")
-        print(f"\nPer-class IoU:")
-        for cls_name, iou in results['per_class_iou'].items():
-            if not np.isnan(iou):
-                print(f"  {cls_name}: {iou:.2f}%")
-        print(f"{'='*50}\n")
+    if verbose or logger:
+        messages = format_evaluation_results(results, class_names)
+        
+        if verbose:
+            for msg in messages:
+                print(msg)
+        
+        if logger:
+            for msg in messages:
+                logger.info(msg)
     
     return results
-
 
 # ====================== Inference-based Evaluation ======================
 
@@ -302,6 +330,7 @@ def inference_evaluate(
     class_names: Optional[List[str]] = None,
     device: str = 'auto',
     verbose: bool = True,
+    logger: Optional[logging.Logger] = None,
     patch_size: int = None,
 ) -> Dict:
     """
@@ -316,7 +345,9 @@ def inference_evaluate(
         mode: Inference mode ('resize' or 'sliding_window')
         class_names: Optional list of class names
         device: Device for inference ('auto', 'cuda', or 'cpu')
-        verbose: Print progress and results
+        verbose: Print progress and results to console
+        logger: Optional logger instance for logging results
+        patch_size: Patch size for sliding window mode
         
     Returns:
         Dictionary containing all evaluation metrics
@@ -324,7 +355,7 @@ def inference_evaluate(
     assert mode == 'sliding_window' and patch_size is not None or mode == 'resize', \
         "For 'sliding_window' mode, patch_size must be provided."
 
-    inferencer = SegmentationInference(model, device=device, patch_size=patch_size)
+    inferencer = SegmentationInference(model, device=device, patch_size=patch_size, load_messages=False)
     
     all_preds = []
     all_targets = []
@@ -361,7 +392,8 @@ def inference_evaluate(
         num_classes=num_classes,
         ignore_index=ignore_index,
         class_names=class_names,
-        verbose=verbose
+        verbose=verbose,
+        logger=logger
     )
     
     return results

@@ -66,9 +66,12 @@ def train_fn(model, loader, optimizer, criterion, epoch, cfg, writer=None, logge
         if writer:
             writer.add_scalar('train/loss_all', loss.item(), global_step)
             writer.add_scalar('train/loss_x', loss.item(), global_step)
+            # Log learning rates for encoder and decoder
+            writer.add_scalar('train/lr_encoder', optimizer.param_groups[0]["lr"], global_step)
+            writer.add_scalar('train/lr_decoder', optimizer.param_groups[1]["lr"], global_step)
             
         if logger and (i % max(1, len(loader) // 8) == 0):
-            logger.info(f'Iters: {global_step}, Total loss: {total_loss.avg:.3f}')
+            logger.info(f'Iters: {global_step}, Total loss: {total_loss.avg:.3f}, LR_enc: {optimizer.param_groups[0]["lr"]:.6f}, LR_dec: {optimizer.param_groups[1]["lr"]:.6f}')
     
     # Calculate and log training metrics
     if writer and all_preds and all_targets:
@@ -78,17 +81,28 @@ def train_fn(model, loader, optimizer, criterion, epoch, cfg, writer=None, logge
         # Compute all metrics using evaluate function
         eval_results = evaluate(all_preds, all_targets, cfg['nclass'], ignore_index=255)
         
-        # Log to tensorboard
+        # Log aggregate metrics to tensorboard
         writer.add_scalar('train/mIoU', eval_results['miou'], epoch)
         writer.add_scalar('train/mean_dice', eval_results['mean_dice'], epoch)
         writer.add_scalar('train/overall_accuracy', eval_results['overall_accuracy'], epoch)
+        writer.add_scalar('train/mean_class_accuracy', eval_results['mean_class_accuracy'], epoch)
+        
+        # Log per-class metrics to tensorboard
+        for class_name, iou_val in eval_results['per_class_iou'].items():
+            if not np.isnan(iou_val):
+                writer.add_scalar(f'train/per_class_iou/{class_name}', iou_val, epoch)
+        
+        for class_name, dice_val in eval_results['per_class_dice'].items():
+            if not np.isnan(dice_val):
+                writer.add_scalar(f'train/per_class_dice/{class_name}', dice_val, epoch)
         
         if logger:
             logger.info(
                 f'Epoch [{epoch}] Train Metrics - '
                 f'mIoU: {eval_results["miou"]:.2f}% | '
                 f'Dice: {eval_results["mean_dice"]:.2f}% | '
-                f'Acc: {eval_results["overall_accuracy"]:.2f}%'
+                f'Acc: {eval_results["overall_accuracy"]:.2f}% | '
+                f'Mean Class Acc: {eval_results["mean_class_accuracy"]:.2f}%'
             )
         
         # Clear memory
@@ -176,11 +190,11 @@ def train(cfg, train_ds, val_ds):
     # print('✓ Using SemiDataset')
 
     trainloader = DataLoader(
-        trainset, batch_size=cfg['batch_size'], num_workers=4, pin_memory=True, 
+        trainset, batch_size=cfg['batch_size'], num_workers=cfg.get('num_workers_train', 0), pin_memory=True, 
         prefetch_factor=2, persistent_workers=False, drop_last=True
     )
     valloader = DataLoader(
-        valset, batch_size=1, num_workers=2, pin_memory=True,
+        valset, batch_size=1, num_workers=cfg.get('num_workers_val', 0), pin_memory=True,
         prefetch_factor=2, persistent_workers=False, drop_last=False
     )
 
@@ -223,10 +237,21 @@ def train(cfg, train_ds, val_ds):
         miou = eval_results['miou']
         mean_dice = eval_results['mean_dice']
         overall_acc = eval_results['overall_accuracy']
+        mean_class_acc = eval_results['mean_class_accuracy']
         
         writer.add_scalar('eval/mIoU', miou, epoch)
         writer.add_scalar('eval/mean_dice', mean_dice, epoch)
         writer.add_scalar('eval/overall_accuracy', overall_acc, epoch)
+        writer.add_scalar('eval/mean_class_accuracy', mean_class_acc, epoch)
+        
+        # Log per-class metrics to tensorboard
+        for class_name, iou_val in eval_results['per_class_iou'].items():
+            if not np.isnan(iou_val):
+                writer.add_scalar(f'eval/per_class_iou/{class_name}', iou_val, epoch)
+        
+        for class_name, dice_val in eval_results['per_class_dice'].items():
+            if not np.isnan(dice_val):
+                writer.add_scalar(f'eval/per_class_dice/{class_name}', dice_val, epoch)
         
         # ========================= Save Model ============================
         is_best = miou > previous_best

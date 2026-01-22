@@ -8,5 +8,6 @@ dataset/
 pretrained/
 checkpoints/
 
-# Ignore Python cache files
+# Byte-compiled / optimized / DLL files
 __pycache__/
+*.py[cod]

@@ -19,7 +19,7 @@ def format_evaluation_results(
     """
     messages = []
     
-    messages.append(f"\n{'='*50}")
+    messages.append(f"{'='*50}")
     messages.append("Evaluation Results:")
     messages.append(f"{'='*50}")
     messages.append(f"mIoU: {results['miou']:.2f}%")
@@ -27,7 +27,7 @@ def format_evaluation_results(
     messages.append(f"Overall Accuracy: {results['overall_accuracy']:.2f}%")
     messages.append(f"Mean Class Accuracy: {results['mean_class_accuracy']:.2f}%")
     
-    messages.append("\nPer-class IoU:")
+    messages.append("Per-class IoU:")
     for cls_name, iou in results['per_class_iou'].items():
         if not np.isnan(iou):
             messages.append(f"  {cls_name}: {iou:.2f}%")
@@ -355,7 +355,7 @@ def inference_evaluate(
     assert mode == 'sliding_window' and patch_size is not None or mode == 'resize', \
         "For 'sliding_window' mode, patch_size must be provided."
 
-    inferencer = SegmentationInference(model, device=device, patch_size=patch_size, load_messages=False)
+    inferencer = SegmentationInference(model, num_classes=num_classes, device=device, patch_size=patch_size, load_messages=False)
     
     all_preds = []
     all_targets = []

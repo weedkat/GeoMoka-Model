@@ -27,6 +27,7 @@ class SegmentationInference:
     def __init__(
         self,
         model,
+        num_classes: int = None,
         device: str = 'auto',
         patch_size: int = 14,
         overlap_ratio: float = 0.5,
@@ -45,8 +46,11 @@ class SegmentationInference:
         self.model = self.model.to(self.device)
         self.model.eval()
         
-        # Extract model info
-        self.num_classes = model.head.scratch.output_conv[-1].out_channels
+        # Extract model info - try multiple approaches for different model types
+        if num_classes is not None:
+            self.num_classes = num_classes
+        else:
+            self.num_classes = self._detect_num_classes()
         
         # ImageNet normalization
         self.img_mean = [0.485, 0.456, 0.406]
@@ -55,6 +59,54 @@ class SegmentationInference:
         if load_messages:
             print(f'[Inference] Model loaded on {self.device}')
             print(f'[Inference] Num classes: {self.num_classes}')
+    
+    def _detect_num_classes(self) -> int:
+        """
+        Detect number of classes from model architecture.
+        Supports DPT, DeepLabV3, and other segmentation models.
+        """
+        # Try DPT architecture
+        if hasattr(self.model, 'head') and hasattr(self.model.head, 'scratch'):
+            try:
+                return self.model.head.scratch.output_conv[-1].out_channels
+            except:
+                pass
+        
+        # Try segmentation_models_pytorch (DeepLabV3, FPN, etc.)
+        if hasattr(self.model, 'segmentation_head'):
+            try:
+                # segmentation_head is usually a Sequential with final layer
+                for layer in reversed(self.model.segmentation_head.modules()):
+                    if hasattr(layer, 'out_channels'):
+                        return layer.out_channels
+                    if hasattr(layer, 'out_features'):
+                        return layer.out_features
+            except:
+                pass
+        
+        # Try decoder
+        if hasattr(self.model, 'decoder'):
+            try:
+                if hasattr(self.model.decoder, 'out_channels'):
+                    return self.model.decoder.out_channels
+            except:
+                pass
+        
+        # Fallback: try to infer from forward pass with dummy input
+        try:
+            with torch.no_grad():
+                dummy_input = torch.randn(1, 3, 256, 256).to(self.device)
+                output = self.model(dummy_input)
+                if isinstance(output, dict):
+                    output = output.get('out', list(output.values())[0])
+                return output.shape[1]
+        except:
+            pass
+        
+        raise RuntimeError(
+            "Could not automatically detect num_classes. "
+            "Please pass num_classes parameter explicitly to SegmentationInference."
+        )
     
     def __call__(
         self,

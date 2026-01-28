@@ -1,12 +1,26 @@
 import random
+from statistics import mean
 
 import numpy as np
 from PIL import Image, ImageOps, ImageFilter
 import torch
 from torchvision import transforms
-
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
 
 def crop(img, mask, size, ignore_value=255):
+    """
+    Randomly crop the image and mask to the given size. Add padding if size is larger than image size.
+
+    Args:
+        img: PIL Image
+        mask: PIL Image
+        size (int): crop size
+        ignore_value (int): value to fill for padded region in mask
+
+    Returns:
+        cropped img and mask
+    """
     w, h = img.size
     padw = size - w if w < size else 0
     padh = size - h if h < size else 0
@@ -24,6 +38,17 @@ def crop(img, mask, size, ignore_value=255):
 
 
 def hflip(img, mask, p=0.5):
+    """
+    Randomly horizontally flip the image and mask with probability p.
+    
+    Args:
+        img: PIL Image
+        mask: PIL Image
+        p (float): probability of flipping
+    
+    Returns:
+        flipped img and mask
+    """
     if random.random() < p:
         img = img.transpose(Image.FLIP_LEFT_RIGHT)
         mask = mask.transpose(Image.FLIP_LEFT_RIGHT)
@@ -31,6 +56,16 @@ def hflip(img, mask, p=0.5):
 
 
 def normalize(img, mask=None):
+    """
+    Normalize the image using ImageNet mean and std. Convert image and mask to tensor.
+    
+    Args:
+        img: PIL Image
+        mask: PIL Image or None
+    
+    Returns:
+        normalized img and (mask if provided)
+    """
     img = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
@@ -42,6 +77,17 @@ def normalize(img, mask=None):
 
 
 def resize(img, mask, ratio_range):
+    """
+    Resize the image and mask by a random scale factor within the given ratio range.
+    
+    Args:
+        img: PIL Image
+        mask: PIL Image
+        ratio_range (tuple): tuple of (min_ratio, max_ratio) for scaling
+    
+    Returns:
+        resized img and mask
+    """
     w, h = img.size
     long_side = random.randint(int(max(h, w) * ratio_range[0]), int(max(h, w) * ratio_range[1]))
 
@@ -58,6 +104,16 @@ def resize(img, mask, ratio_range):
 
 
 def blur(img, p=0.5):
+    """
+    Apply Gaussian blur to the image with probability p.
+    
+    Args:
+        img: PIL Image
+        p (float): probability of applying blur
+    
+    Returns:     
+        blurred img
+    """ 
     if random.random() < p:
         sigma = np.random.uniform(0.1, 2.0)
         img = img.filter(ImageFilter.GaussianBlur(radius=sigma))
@@ -65,6 +121,20 @@ def blur(img, p=0.5):
 
 
 def obtain_cutmix_box(img_size, p=0.5, size_min=0.02, size_max=0.4, ratio_1=0.3, ratio_2=1/0.3):
+    """
+    Obtain a cutmix box mask for the given image size.
+    
+    Args:
+        img_size (int): size of the image (assumed square)
+        p (float): probability of applying cutmix
+        size_min (float): minimum area ratio of the cutmix box
+        size_max (float): maximum area ratio of the cutmix box
+        ratio_1 (float): minimum aspect ratio of the cutmix box
+        ratio_2 (float): maximum aspect ratio of the cutmix box
+    
+    Returns:
+        cutmix box mask (2D tensor)
+    """
     mask = torch.zeros(img_size, img_size)
     if random.random() > p:
         return mask
@@ -83,3 +153,25 @@ def obtain_cutmix_box(img_size, p=0.5, size_min=0.02, size_max=0.4, ratio_1=0.3,
     mask[y:y + cutmix_h, x:x + cutmix_w] = 1
 
     return mask
+
+class TransormsCompose:
+    def __init__(self, cfg, mode='train'):
+        self.cfg = cfg.get('augmentations', {}).get(mode, [])
+        transforms = [self.build_transforms(spec) for spec in self.cfg]
+        self.transform = A.Compose(transforms)
+        
+    def __call__(self, **kwargs):
+        return self.transform(**kwargs)
+
+    def build_transforms(self, spec):
+        name = spec['name']
+        args = spec.get('kwargs', {}).copy()
+        
+        if name in ("OneOf", "SomeOf", "Compose"):
+            nested_spec = args.pop('transforms', [])
+            transforms = [self.build_transforms(t) for t in nested_spec]
+            cls = getattr(A, name)
+            return cls(transforms, **args)
+
+        cls = getattr(A, name)
+        return cls(**args)

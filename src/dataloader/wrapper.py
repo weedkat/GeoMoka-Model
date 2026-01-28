@@ -1,4 +1,5 @@
 from dataloader.transform import *
+from dataloader.transform import TransformsCompose
 
 from copy import deepcopy
 import math
@@ -11,11 +12,15 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
 
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
+
 # The wrapper dataset for semi-supervised learning
 # The dataset supports three modes: 'train_l', 'train_u', and 'val'
 # nsample specifies the number of samples per epoch, semi-supervised learning requries balanced sample between labeled and unlabeled data
 class SemiDataset(Dataset):
     def __init__(self, dataset, mode, size, nsample=None):
+
         self.dataset = dataset
         self.mode = mode
         self.size = size
@@ -84,52 +89,17 @@ class SemiDataset(Dataset):
         return len(self.indices)
     
 
-import albumentations as A
-from albumentations.pytorch import ToTensorV2
-
+# Dataset wrapper for supervised training with augmentations.
 class SupervisedDataset(Dataset):
-    """
-    Dataset wrapper for supervised training with augmentations.
-    Uses albumentations for efficient augmentation pipeline.
-    """
-    def __init__(self, dataset, mode='train', size=256, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+    def __init__(self, dataset, mode, cfg):
         """
         Args:
             dataset: Base dataset (e.g., ISPRSPostdam)
             mode: 'train' or 'val'
-            size: Crop size for training
-            mean: ImageNet mean for normalization
-            std: ImageNet std for normalization
         """
         self.dataset = dataset
         self.mode = mode
-        self.size = size
-        
-        if mode == 'train':
-            self.transform = A.Compose([
-                A.RandomCrop(height=size, width=size, p=1.0),
-                A.HorizontalFlip(p=0.5),
-                A.VerticalFlip(p=0.3),
-                A.RandomRotate90(p=0.5),
-                # A.OneOf([
-                #     A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=1.0),
-                #     A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=1.0),
-                # ], p=0.5),
-                # A.OneOf([
-                #     A.GaussianBlur(blur_limit=(3, 7), p=1.0),
-                #     A.MedianBlur(blur_limit=5, p=1.0),
-                # ], p=0.3),
-                # A.GaussNoise(var_limit=(10.0, 50.0), p=0.3),
-                A.Normalize(mean=mean, std=std),
-                ToTensorV2(),
-            ])
-
-        else:  # val mode
-            self.transform = A.Compose([
-                # A.Resize(height=size, width=size),
-                # A.Normalize(mean=mean, std=std),
-                ToTensorV2(),
-            ])
+        self.transform = TransformsCompose(cfg, mode=mode)
     
     def __getitem__(self, idx):
         img, mask = self.dataset[idx]

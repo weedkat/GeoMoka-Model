@@ -242,6 +242,7 @@ def train(args):
             num_classes=cfg['nclass'],
             ignore_index=cfg.get('ignore_index', 255),
             mode=cfg.get('eval_mode', 'resize'),
+            patch_size=cfg.get('crop_size', None),
             class_dict=class_dict,
             device='cuda',
             verbose=True,

@@ -316,7 +316,7 @@ def evaluate(
     }
     
     if verbose or logger:
-        messages = format_evaluation_results(results, class_dict)
+        messages = format_evaluation_results(results)
         
         if verbose:
             for msg in messages:

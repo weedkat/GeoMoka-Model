@@ -15,7 +15,7 @@ metadata: config/ISPRS-Postdam/metadata.yaml
 transform: config/ISPRS-Postdam/transform.yaml
 
 # arguments for data loader, tweak if training is slow or low gpu utilization
-batch_size: 8  # Can use larger batch with smaller models
+batch_size: 4  # Can use larger batch with smaller models
 num_workers_train: 6  # default 4, Number of workers for training dataloader
 num_workers_val: 2  # default 2, Number of workers for validation dataloader
 prefetch_factor: 2 # Number of samples loaded in advance by each worker

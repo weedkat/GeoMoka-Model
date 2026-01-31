@@ -4,6 +4,8 @@ define: &ignore_index 255
 dataset: ISPRS-Postdam
 crop_size: 252
 nsample: 3000
+nclass: 5
+in_channels: 3
 ignore_index: *ignore_index
 root_dir: dataset/ISPRS-Postdam
 train_split: dataset/ISPRS-Postdam/splits/train.csv

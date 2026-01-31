@@ -23,8 +23,8 @@ def format_evaluation_results(
     messages.append(f"{'='*50}")
     messages.append(f"mIoU: {results['miou']:.2f}%")
     messages.append(f"Mean Dice: {results['mean_dice']:.2f}%")
-    messages.append(f"Overall Accuracy: {results['overall_accuracy']:.2f}%")
-    messages.append(f"Mean Class Accuracy: {results['mean_class_accuracy']:.2f}%")
+    messages.append(f"Micro Accuracy: {results['micro_accuracy']:.2f}%")
+    messages.append(f"Macro Accuracy: {results['macro_accuracy']:.2f}%")
     
     messages.append("Per-class IoU:")
     for cls_name, iou in results['per_class_iou'].items():

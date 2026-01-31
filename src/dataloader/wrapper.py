@@ -91,13 +91,14 @@ class SemiDataset(Dataset):
 
 # Dataset wrapper for supervised training with augmentations.
 class SupervisedDataset(Dataset):
-    def __init__(self, dataset, transform_cfg):
+    def __init__(self, dataset, transform_cfg = None):
         """
         Args:
-            dataset: Base dataset (e.g., ISPRSPostdam) with __getitem__ returning (image, mask) in numpy form. 
+            dataset: Base dataset (e.g., ISPRSPostdam) with __getitem__ returning (image, mask) in numpy form.
+            transform_cfg: List of transform configs. If empty/None, no transforms applied.
         """
         self.dataset = dataset
-        self.transform = TransformsCompose(transform_cfg)
+        self.transform = TransformsCompose(transform_cfg) if transform_cfg else None
     
     def __getitem__(self, idx):
         img, mask = self.dataset[idx]
@@ -114,12 +115,15 @@ class SupervisedDataset(Dataset):
         if mask.dtype != np.uint8:
             mask = mask.astype(np.uint8)
         
-        # Apply transformations
-        transformed = self.transform(image=img, mask=mask)
-        img = transformed['image']
-        mask = transformed['mask'].long()
-        
-        return img, mask
+        # Apply transformations if configured
+        if self.transform is not None:
+            transformed = self.transform(image=img, mask=mask)
+            img = transformed['image']
+            mask = transformed['mask'].long()
+            return img, mask
+        else:
+            # No transforms - return numpy arrays (inference_evaluate handles conversion)
+            return img, mask
     
     def __len__(self):
         return len(self.dataset)

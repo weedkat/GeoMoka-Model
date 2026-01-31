@@ -341,7 +341,7 @@ def inference_evaluate(
     verbose: bool = True,
     logger: Optional[logging.Logger] = None,
     patch_size: int = None,
-    transform_config: Optional[Dict] = None
+    transform_cfg: Optional[Dict] = None
 ) -> Dict:
     """
     Evaluate model on a dataset using the inference module.
@@ -358,15 +358,15 @@ def inference_evaluate(
         verbose: Print progress and results to console
         logger: Optional logger instance for logging results
         patch_size: Patch size for sliding window mode
-        transform_config: Optional dictionary for transformation configuration
+        transform_cfg: Optional dictionary for transformation configuration
     Returns:
         Dictionary containing all evaluation metrics
     """
-    assert mode == 'sliding_window' and patch_size is not None or mode == 'resize', \
+    assert (mode == 'sliding_window' and patch_size is not None) or mode == 'resize', \
         "For 'sliding_window' mode, patch_size must be provided."
 
     inferencer = SegmentationInference(model, num_classes=num_classes, device=device, 
-                                       patch_size=patch_size, load_messages=False, transform_config=transform_config)
+                                       patch_size=patch_size, load_messages=False, transform_cfg=transform_cfg)
     
     all_preds = []
     all_targets = []
@@ -379,7 +379,9 @@ def inference_evaluate(
             batch_size = images.size(0)
             for i in range(batch_size):
                 img = images[i]
-                target = targets[i].numpy()
+                target = targets[i]
+                if isinstance(target, torch.Tensor):
+                    target = target.numpy()
                 
                 # Inference
                 pred, _ = inferencer(img, mode=mode, return_confidence=False, verbose=False)
@@ -387,7 +389,9 @@ def inference_evaluate(
                 all_preds.append(pred)
                 all_targets.append(target)
         else:
-            target = targets.numpy()
+            target = targets
+            if isinstance(target, torch.Tensor):
+                target = target.numpy()
             pred, _ = inferencer(images, mode=mode, return_confidence=False, verbose=False)
             all_preds.append(pred)
             all_targets.append(target)

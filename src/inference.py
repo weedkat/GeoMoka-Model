@@ -34,17 +34,17 @@ class SegmentationInference:
         patch_size: int = 14,
         overlap_ratio: float = 0.5,
         load_messages: bool = True,
-        transform_config: dict = None,
+        transform_cfg: dict = None,
     ):
         self.model = model
         self.patch_size = patch_size
         self.overlap_ratio = overlap_ratio
 
         # Transform configuration
-        if transform_config:
-            self.transform = TransformsCompose(transform_config)
+        if transform_cfg:
+            self.transform = TransformsCompose(transform_cfg)
         else:
-            print("Warning: No transform_config provided, using default ToTensor transform.")
+            print("Warning: No transform_cfg provided, using default ToTensor transform.")
             self.transform = A.Compose([ToTensorV2()])
         
         # Device setup

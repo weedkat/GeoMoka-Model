@@ -9,8 +9,8 @@ root_dir: dataset/ISPRS-Postdam
 train_split: dataset/ISPRS-Postdam/splits/train.csv
 val_split: dataset/ISPRS-Postdam/splits/val.csv
 test_split: dataset/ISPRS-Postdam/splits/test.csv
-dataset_metadata: config/ISPRS-Postdam/metadata.yaml
-transform_config: config/ISPRS-Postdam/transform.yaml
+metadata: config/ISPRS-Postdam/metadata.yaml
+transform: config/ISPRS-Postdam/transform.yaml
 
 # arguments for data loader, tweak if training is slow or low gpu utilization
 batch_size: 8  # Can use larger batch with smaller models

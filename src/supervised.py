@@ -115,6 +115,8 @@ def train_fn(model, loader, optimizer, criterion, epoch, cfg, writer=None, logge
 
 def train(args):
     cfg = yaml.load(open(args.config, "r"), Loader=yaml.Loader)
+    transform_cfg = yaml.load(open(cfg['transform'], 'r'), Loader=yaml.Loader)
+    cfg = {**cfg, **transform_cfg}
 
     train_ds = get_dataset(cfg['dataset'], cfg['train_split'], root_dir=cfg.get('root_dir'), metadata=cfg.get('metadata'))
     val_ds = get_dataset(cfg['dataset'], cfg['val_split'], root_dir=cfg.get('root_dir'), metadata=cfg.get('metadata'))
@@ -132,7 +134,7 @@ def train(args):
         rank_filter=True,
     )
 
-    all_args = {**cfg, 'ngpus': 1, 'model_name': model_name}
+    all_args = {**cfg, 'ngpus': 1, 'model_name': model_name, 'transform': transform_cfg}
 
     # Save config file
     yaml.dump(all_args, open(os.path.join(save_path, 'config.yaml'), 'w'))
@@ -192,7 +194,7 @@ def train(args):
     
     # Data loaders
     trainset = SupervisedDataset(train_ds, cfg['train'])
-    valset = SupervisedDataset(val_ds, cfg['inference'])
+    valset = SupervisedDataset(val_ds, [])  # No transforms - inference_evaluate applies them
     print('Using SupervisedDataset with albumentations')
 
     # trainset = SemiDataset(train_ds, mode='train_l', size=cfg['crop_size'], nsample=cfg.get('nsample'))

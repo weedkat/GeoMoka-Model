@@ -302,7 +302,7 @@ class SegmentationInference:
         # Convert to PIL Image for transforms
         img_pil = Image.fromarray(img_np)
         
-        img_tensor = self.transform_config(image=np.array(img_pil))['image'] if self.transform_config else transforms.ToTensor()(img_pil)
+        img_tensor = self.transform(image=np.array(img_pil))['image']
         
         # Add batch dimension: (C, H, W) -> (1, C, H, W)
         img_tensor = img_tensor.unsqueeze(0)

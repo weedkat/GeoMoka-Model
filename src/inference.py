@@ -7,7 +7,9 @@ import time
 from typing import Union, Tuple, Dict, List
 from pathlib import Path
 from torchvision import transforms
-
+from dataloader.transform import TransformsCompose
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
 
 class SegmentationInference:
     """
@@ -32,10 +34,18 @@ class SegmentationInference:
         patch_size: int = 14,
         overlap_ratio: float = 0.5,
         load_messages: bool = True,
+        transform_config: dict = None,
     ):
         self.model = model
         self.patch_size = patch_size
         self.overlap_ratio = overlap_ratio
+
+        # Transform configuration
+        if transform_config:
+            self.transform = TransformsCompose(transform_config)
+        else:
+            print("Warning: No transform_config provided, using default ToTensor transform.")
+            self.transform = A.Compose([ToTensorV2()])
         
         # Device setup
         if device == 'auto':
@@ -51,10 +61,6 @@ class SegmentationInference:
             self.num_classes = num_classes
         else:
             self.num_classes = self._detect_num_classes()
-        
-        # ImageNet normalization
-        self.img_mean = [0.485, 0.456, 0.406]
-        self.img_std = [0.229, 0.224, 0.225]
         
         if load_messages:
             print(f'[Inference] Model loaded on {self.device}')
@@ -108,10 +114,79 @@ class SegmentationInference:
             "Please pass num_classes parameter explicitly to SegmentationInference."
         )
     
+    def _apply_confidence_rejection(
+        self,
+        pred: np.ndarray,
+        max_conf: np.ndarray
+    ) -> np.ndarray:
+        """
+        Apply confidence-based rejection to predictions.
+        
+        Args:
+            pred: Predicted labels (H, W)
+            max_conf: Max confidence per pixel (H, W)
+            
+        Returns:
+            pred_rejected: Predictions with low-confidence pixels set to reject_class
+        """
+        pred_rejected = pred.copy()
+        pred_rejected[max_conf < self.confidence_threshold] = self.reject_class
+        return pred_rejected
+    
+    def set_confidence_threshold(self, threshold: float, reject_class: int = 255) -> None:
+        """
+        Set confidence threshold for rejection.
+        
+        Args:
+            threshold: Confidence threshold [0, 1]. None to disable.
+            reject_class: Class ID for rejected pixels
+        """
+        self.confidence_threshold = threshold
+        self.reject_class = reject_class
+    
+    def get_confidence_stats(
+        self,
+        images: Union[List, DataLoader],
+        mode: str = 'sliding_window'
+    ) -> Dict:
+        """
+        Compute confidence statistics over multiple images to guide threshold selection.
+        
+        Args:
+            images: List of images or DataLoader
+            mode: 'resize' or 'sliding_window'
+            
+        Returns:
+            Dictionary with confidence statistics
+        """
+        all_conf = []
+        
+        image_list = images if isinstance(images, list) else list(images)
+        
+        # compute max confidence across classes for each pixel
+        for img in image_list:
+            _, conf, _ = self(img, mode=mode, return_confidence=True, verbose=False)
+            max_conf = np.max(conf, axis=0).flatten()
+            all_conf.append(max_conf)
+        
+        all_conf = np.concatenate(all_conf)
+        
+        return {
+            'mean': float(np.mean(all_conf)),
+            'median': float(np.median(all_conf)),
+            'std': float(np.std(all_conf)),
+            'min': float(np.min(all_conf)),
+            'max': float(np.max(all_conf)),
+            'percentile_10': float(np.percentile(all_conf, 10)),
+            'percentile_25': float(np.percentile(all_conf, 25)),
+            'percentile_75': float(np.percentile(all_conf, 75)),
+            'percentile_90': float(np.percentile(all_conf, 90)),
+        }
+    
     def __call__(
         self,
         image: Union[Image.Image, np.ndarray, torch.Tensor, List, DataLoader],
-        mode: str = 'resize',
+        mode: str = 'sliding_window',
         return_confidence: bool = False,
         verbose: bool = True,
     ) -> Union[Tuple[np.ndarray, Dict], Tuple[np.ndarray, np.ndarray, Dict]]:
@@ -120,7 +195,7 @@ class SegmentationInference:
         
         Args:
             image: Single image (PIL/numpy/tensor) or batch (list/DataLoader)
-            mode: 'resize' or 'sliding_window'
+            mode: 'sliding_window' or 'resize'  
             return_confidence: Return confidence scores alongside predictions
             verbose: Print processing info
             
@@ -160,6 +235,9 @@ class SegmentationInference:
         # Extract predictions and confidence
         pred = output.argmax(dim=1).squeeze(0).cpu().numpy()  # (H, W)
         conf = output.softmax(dim=1).squeeze(0).cpu().numpy()  # (C, H, W)
+
+        max_conf = np.max(conf, axis=0)  # (H, W)
+        pred = self._apply_confidence_rejection(pred, max_conf) if hasattr(self, 'confidence_threshold') else pred
         
         elapsed = time.time() - start_time
         
@@ -224,10 +302,7 @@ class SegmentationInference:
         # Convert to PIL Image for transforms
         img_pil = Image.fromarray(img_np)
         
-        img_tensor = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(self.img_mean, self.img_std),
-        ])(img_pil)
+        img_tensor = self.transform_config(image=np.array(img_pil))['image'] if self.transform_config else transforms.ToTensor()(img_pil)
         
         # Add batch dimension: (C, H, W) -> (1, C, H, W)
         img_tensor = img_tensor.unsqueeze(0)

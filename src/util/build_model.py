@@ -14,7 +14,13 @@ except ImportError:
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 PRETRAINED_DIR = PROJECT_ROOT / 'pretrained'
 
-def build_segmentation_model(model_name, backbone, in_channels, nclass, pretrained=True, lock_backbone=True, pretrain_dir=PRETRAINED_DIR):
+def build_segmentation_model(model_name, 
+                             backbone, 
+                             in_channels, 
+                             nclass, 
+                             pretrained=True, 
+                             lock_backbone=True, 
+                             pretrain_dir=PRETRAINED_DIR):
     """
     Build segmentation model from either smp library or custom DPT.
     

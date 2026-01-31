@@ -6,7 +6,27 @@ from PIL import Image, ImageOps, ImageFilter
 import torch
 from torchvision import transforms
 import albumentations as A
-from albumentations.pytorch import ToTensorV2
+
+
+class TransformsCompose:
+    def __init__(self, cfg):
+        transforms = [self.build_transforms(spec) for spec in cfg]
+        self.transform = A.Compose(transforms)
+        
+    def __call__(self, **kwargs):
+        return self.transform(**kwargs)
+
+    def build_transforms(self, spec):
+        name = spec['name']
+        args = spec.get('kwargs', {}).copy()
+        cls = getattr(A, name)
+        
+        if name in ("OneOf", "SomeOf", "Compose"):
+            nested_spec = args.pop('transforms', [])
+            transforms = [self.build_transforms(t) for t in nested_spec]
+            return cls(transforms, **args)
+
+        return cls(**args)
 
 def crop(img, mask, size, ignore_value=255):
     """
@@ -153,25 +173,3 @@ def obtain_cutmix_box(img_size, p=0.5, size_min=0.02, size_max=0.4, ratio_1=0.3,
     mask[y:y + cutmix_h, x:x + cutmix_w] = 1
 
     return mask
-
-class TransormsCompose:
-    def __init__(self, cfg, mode='train'):
-        self.cfg = cfg.get('augmentations', {}).get(mode, [])
-        transforms = [self.build_transforms(spec) for spec in self.cfg]
-        self.transform = A.Compose(transforms)
-        
-    def __call__(self, **kwargs):
-        return self.transform(**kwargs)
-
-    def build_transforms(self, spec):
-        name = spec['name']
-        args = spec.get('kwargs', {}).copy()
-        
-        if name in ("OneOf", "SomeOf", "Compose"):
-            nested_spec = args.pop('transforms', [])
-            transforms = [self.build_transforms(t) for t in nested_spec]
-            cls = getattr(A, name)
-            return cls(transforms, **args)
-
-        cls = getattr(A, name)
-        return cls(**args)

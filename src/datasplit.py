@@ -3,6 +3,7 @@ import pandas as pd
 from glob import glob
 from sklearn.model_selection import train_test_split
 from pathlib import Path
+import argparse
 
 SEED = 10
 
@@ -43,9 +44,14 @@ def seg_split(img_dir, mask_dir, out_dir, labeled_ratio=(), test_val_split=0.3, 
 
 
 if __name__ == '__main__':
-    img_dir = 'dataset/ISPRS-Postdam/patches/Images'
-    mask_dir = 'dataset/ISPRS-Postdam/patches/Labels'
-    out_dir = 'dataset/ISPRS-Postdam/splits'
-    labeled_ratio = (0.4, 0.2, 0.1, 0.05)
+    parser = argparse.ArgumentParser(description='Segmented Dataset Splitter')
+    parser.add_argument('--img_dir', type=str, required=True, help='Directory containing images')
+    parser.add_argument('--mask_dir', type=str, required=True, help='Directory containing masks')
+    parser.add_argument('--out_dir', type=str, required=True, help='Output directory for splits')
+    parser.add_argument('--labeled_ratio', type=float, nargs='*', default=[0.4, 0.2, 0.1, 0.05], help='Ratios for labeled data splits')
+    parser.add_argument('--img_ext', type=str, default='.tif', help='Image file extension')
+    parser.add_argument('--mask_ext', type=str, default='.tif', help='Mask file extension')
 
-    seg_split(img_dir, mask_dir, out_dir, labeled_ratio, img_ext='.tif', mask_ext='.tif')
+    args = parser.parse_args()
+
+    seg_split(args.img_dir, args.mask_dir, args.out_dir, args.labeled_ratio, img_ext=args.img_ext, mask_ext=args.mask_ext)

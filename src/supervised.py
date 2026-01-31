@@ -19,11 +19,12 @@ from tqdm import tqdm
 from dataloader.wrapper import SemiDataset, SupervisedDataset
 from evaluate import inference_evaluate
 from util.ohem import ProbOhemCrossEntropy2d
-from util.utils import count_params, AverageMeter, init_log
+from util.utils import count_params, AverageMeter, init_log, generate_model_name
 from util.dist_helper import setup_distributed
 from util.build_model import build_segmentation_model
 from util.build_dataset import get_dataset
 from evaluate import evaluate
+from dataloader.mask_converter import MaskConverter
 
 def train_fn(model, loader, optimizer, criterion, epoch, cfg, writer=None, logger=None):
     model.train()
@@ -79,7 +80,7 @@ def train_fn(model, loader, optimizer, criterion, epoch, cfg, writer=None, logge
         all_targets = np.concatenate(all_targets, axis=0)
         
         # Compute all metrics using evaluate function
-        eval_results = evaluate(all_preds, all_targets, cfg['nclass'], ignore_index=255)
+        eval_results = evaluate(all_preds, all_targets, cfg['nclass'], ignore_index=cfg.get('ignore_index', 255))
         
         # Log aggregate metrics to tensorboard
         writer.add_scalar('train/mIoU', eval_results['miou'], epoch)
@@ -112,9 +113,14 @@ def train_fn(model, loader, optimizer, criterion, epoch, cfg, writer=None, logge
     torch.cuda.synchronize()
     torch.cuda.empty_cache()
 
+def train(args):
+    cfg = yaml.load(open(args.config, "r"), Loader=yaml.Loader)
 
-def train(cfg, train_ds, val_ds):
-    save_path = os.path.join('checkpoints', cfg['model_name'])
+    train_ds = get_dataset(cfg['dataset'], cfg['train_split'], root_dir=cfg.get('root_dir'), metadata=cfg.get('metadata'))
+    val_ds = get_dataset(cfg['dataset'], cfg['val_split'], root_dir=cfg.get('root_dir'), metadata=cfg.get('metadata'))
+
+    model_name = generate_model_name(cfg)
+    save_path = os.path.join(args.save_path, model_name)
     os.makedirs(save_path, exist_ok=True)
 
     # ====================== logger =========================
@@ -126,7 +132,10 @@ def train(cfg, train_ds, val_ds):
         rank_filter=True,
     )
 
-    all_args = {**cfg, 'ngpus': 1}
+    all_args = {**cfg, 'ngpus': 1, 'model_name': model_name}
+
+    # Save config file
+    yaml.dump(all_args, open(os.path.join(save_path, 'config.yaml'), 'w'))
     
     # Print config to console
     print('\n' + '='*80)
@@ -173,6 +182,7 @@ def train(cfg, train_ds, val_ds):
     print(f'Total params: {count_params(model):.1f}M\n')
     logger.info(f'Total params: {count_params(model):.1f}M\n')
 
+    # Define loss criterion
     if cfg['criterion']['name'] == 'CELoss':
         criterion = nn.CrossEntropyLoss(**cfg['criterion']['kwargs']).cuda()
     elif cfg['criterion']['name'] == 'OHEM':
@@ -180,9 +190,9 @@ def train(cfg, train_ds, val_ds):
     else:
         raise NotImplementedError('%s criterion is not implemented' % cfg['criterion']['name'])
     
-    # Use SupervisedDataset with albumentations
-    trainset = SupervisedDataset(train_ds, mode='train', size=cfg['crop_size'])
-    valset = SupervisedDataset(val_ds, mode='val', size=cfg['crop_size'])
+    # Data loaders
+    trainset = SupervisedDataset(train_ds, cfg['train'])
+    valset = SupervisedDataset(val_ds, cfg['inference'])
     print('Using SupervisedDataset with albumentations')
 
     # trainset = SemiDataset(train_ds, mode='train_l', size=cfg['crop_size'], nsample=cfg.get('nsample'))
@@ -190,18 +200,22 @@ def train(cfg, train_ds, val_ds):
     # print('✓ Using SemiDataset')
 
     trainloader = DataLoader(
-        trainset, batch_size=cfg['batch_size'], num_workers=cfg.get('num_workers_train', 0), pin_memory=True, 
-        prefetch_factor=2, persistent_workers=False, drop_last=True
+        trainset, batch_size=cfg['batch_size'], num_workers=cfg.get('num_workers_train', 4), pin_memory=cfg.get('pin_memory', True), 
+        prefetch_factor=cfg.get('prefetch_factor', 2), persistent_workers=cfg.get('persistent_workers', True), drop_last=True
     )
     valloader = DataLoader(
-        valset, batch_size=1, num_workers=cfg.get('num_workers_val', 0), pin_memory=True,
-        prefetch_factor=2, persistent_workers=False, drop_last=False
+        valset, batch_size=cfg['batch_size'], num_workers=cfg.get('num_workers_val', 2), pin_memory=cfg.get('pin_memory', True),
+        prefetch_factor=cfg.get('prefetch_factor', 2), persistent_workers=cfg.get('persistent_workers', True), drop_last=False
     )
+
+    mask_converter = MaskConverter(cfg['metadata'])
+    class_dict = mask_converter.get_class_dict()
 
     # ====================== Train =====================================================
 
     previous_best = 0.0
     start_epoch = 1
+    best_metrics = {}
     
     if os.path.exists(os.path.join(save_path, 'latest.pth')):
         checkpoint = torch.load(os.path.join(save_path, 'latest.pth'), map_location='cpu', weights_only=False)
@@ -211,7 +225,8 @@ def train(cfg, train_ds, val_ds):
         previous_best = checkpoint['previous_best']
         
         logger.info('************ Load from checkpoint at epoch %i\n' % start_epoch)
-    
+
+        
     for epoch in range(start_epoch, cfg['epochs'] + 1):
         train_fn(model, trainloader, optimizer, criterion, epoch, cfg, writer=writer, logger=logger)
         
@@ -224,13 +239,13 @@ def train(cfg, train_ds, val_ds):
             model=model,
             dataloader=valloader,
             num_classes=cfg['nclass'],
-            ignore_index=255,
+            ignore_index=cfg.get('ignore_index', 255),
             mode=cfg.get('eval_mode', 'resize'),
-            class_names=None,
+            class_names=class_dict,
             device='cuda',
             verbose=True,
             logger=logger,
-            patch_size=cfg['crop_size']
+            transform_config=cfg.get('inference', [])
         )
         
         # Log to tensorboard
@@ -262,6 +277,7 @@ def train(cfg, train_ds, val_ds):
             'optimizer': optimizer.state_dict(),
             'epoch': epoch,
             'previous_best': previous_best,
+            'model_name': model_name,
         }
 
         torch.save(checkpoint, os.path.join(save_path, 'latest.pth'))
@@ -270,16 +286,30 @@ def train(cfg, train_ds, val_ds):
             torch.save(checkpoint, os.path.join(save_path, 'best.pth'))
             print(f'New best model saved with mIoU: {miou:.2f}%\n')
             logger.info(f'New best model saved with mIoU: {miou:.2f}%\n')
+        
+        # Always track last validation results for final hparams logging
+        best_metrics = eval_results.copy()
+    
+    # ========================= Finalize Tensorboard ============================
+    hparams = {
+        'lr': cfg['lr'],
+        'batch_size': cfg['batch_size'],
+        'optimizer': cfg.get('optimizer', 'AdamW'),
+    }
+
+    writer.add_hparams(hparam_dict=hparams, metric_dict={
+        'best_mIoU': best_metrics.get('miou', 0.0),
+        'best_mean_dice': best_metrics.get('mean_dice', 0.0),
+        'best_overall_accuracy': best_metrics.get('overall_accuracy', 0.0),
+    })
+
+    writer.close()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, required=True, help='config file path')
     parser.add_argument('--local_rank', type=int, default=0, help='local rank for distributed training')
+    parser.add_argument('--save_path', type=str, default='checkpoints', help='path to save checkpoints and logs')
     args = parser.parse_args()
-
-    cfg = yaml.load(open(args.config, "r"), Loader=yaml.Loader)
-
-    trainset = get_dataset(cfg['dataset'], cfg['train_split'], root_dir=cfg.get('root_dir'), class_dict=cfg.get('class_dict'))
-    valset = get_dataset(cfg['dataset'], cfg['val_split'], root_dir=cfg.get('root_dir'), class_dict=cfg.get('class_dict'))
     
-    train(cfg, trainset, valset)
+    train(args)

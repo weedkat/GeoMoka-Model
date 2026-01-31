@@ -2,7 +2,8 @@ import numpy as np
 import logging
 import os
 from typing import Optional
-
+import hashlib
+import json
 
 def count_params(model):
     param_num = sum(p.numel() for p in model.parameters())
@@ -94,3 +95,12 @@ def init_log(
         logger.addHandler(fh)
 
     return logger
+
+def generate_model_name(cfg):
+    # Create a hashable copy excluding model_name to avoid circular dependency
+    config_for_hash = {k: v for k, v in cfg.items() if k != 'model_name'}
+    config_str = json.dumps(config_for_hash, sort_keys=True, default=str)
+    config_hash = hashlib.md5(config_str.encode()).hexdigest()[:8]
+    
+    base_name = cfg.get('model_name', 'model')
+    return f"{base_name}_{config_hash}"

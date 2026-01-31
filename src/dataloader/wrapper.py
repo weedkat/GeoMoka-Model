@@ -91,15 +91,13 @@ class SemiDataset(Dataset):
 
 # Dataset wrapper for supervised training with augmentations.
 class SupervisedDataset(Dataset):
-    def __init__(self, dataset, mode, cfg):
+    def __init__(self, dataset, transform_cfg):
         """
         Args:
-            dataset: Base dataset (e.g., ISPRSPostdam)
-            mode: 'train' or 'val'
+            dataset: Base dataset (e.g., ISPRSPostdam) with __getitem__ returning (image, mask) in numpy form. 
         """
         self.dataset = dataset
-        self.mode = mode
-        self.transform = TransformsCompose(cfg, mode=mode)
+        self.transform = TransformsCompose(transform_cfg)
     
     def __getitem__(self, idx):
         img, mask = self.dataset[idx]

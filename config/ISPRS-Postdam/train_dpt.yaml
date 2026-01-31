@@ -34,8 +34,8 @@ conf_thresh: 0.95
 eval_mode: sliding_window
 
 # arguments for model
-model: deeplabv3  # Options: unet, unet++, deeplabv3, deeplabv3+, fpn, pspnet, pan, linknet, manet, dpt
-backbone: resnet50  # Options: resnet50, efficientnet-b4, mobilenet_v2, etc. (see smp docs)
+model: dpt  # Options: unet, unet++, deeplabv3, deeplabv3+, fpn, pspnet, pan, linknet, manet, dpt
+backbone: dinov2_small  # Options: resnet50, efficientnet-b4, mobilenet_v2, etc. (see smp docs)
 pretrained: true  # Use ImageNet pretrained weights
 lock_backbone: false  # Train encoder
-model_name: deeplabv3_resnet50_isprs_postdam
+model_name: dpt_dinov2_small_isprs_postdam

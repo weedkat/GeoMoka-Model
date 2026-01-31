@@ -85,8 +85,8 @@ def train_fn(model, loader, optimizer, criterion, epoch, cfg, writer=None, logge
         # Log aggregate metrics to tensorboard
         writer.add_scalar('train/mIoU', eval_results['miou'], epoch)
         writer.add_scalar('train/mean_dice', eval_results['mean_dice'], epoch)
-        writer.add_scalar('train/overall_accuracy', eval_results['overall_accuracy'], epoch)
-        writer.add_scalar('train/mean_class_accuracy', eval_results['mean_class_accuracy'], epoch)
+        writer.add_scalar('train/micro_accuracy', eval_results['micro_accuracy'], epoch)
+        writer.add_scalar('train/macro_accuracy', eval_results['macro_accuracy'], epoch)
         
         # Log per-class metrics to tensorboard
         for class_name, iou_val in eval_results['per_class_iou'].items():
@@ -102,8 +102,8 @@ def train_fn(model, loader, optimizer, criterion, epoch, cfg, writer=None, logge
                 f'Epoch [{epoch}] Train Metrics - '
                 f'mIoU: {eval_results["miou"]:.2f}% | '
                 f'Dice: {eval_results["mean_dice"]:.2f}% | '
-                f'Acc: {eval_results["overall_accuracy"]:.2f}% | '
-                f'Mean Class Acc: {eval_results["mean_class_accuracy"]:.2f}%'
+                f'Acc: {eval_results["micro_accuracy"]:.2f}% | '
+                f'Mean Class Acc: {eval_results["macro_accuracy"]:.2f}%'
             )
         
         # Clear memory
@@ -242,23 +242,23 @@ def train(args):
             num_classes=cfg['nclass'],
             ignore_index=cfg.get('ignore_index', 255),
             mode=cfg.get('eval_mode', 'resize'),
-            class_names=class_dict,
+            class_dict=class_dict,
             device='cuda',
             verbose=True,
             logger=logger,
-            transform_config=cfg.get('inference', [])
+            transform_cfg=cfg.get('inference', [])
         )
         
         # Log to tensorboard
         miou = eval_results['miou']
         mean_dice = eval_results['mean_dice']
-        overall_acc = eval_results['overall_accuracy']
-        mean_class_acc = eval_results['mean_class_accuracy']
+        micro_acc = eval_results['micro_accuracy']
+        macro_acc = eval_results['macro_accuracy']
         
         writer.add_scalar('eval/mIoU', miou, epoch)
         writer.add_scalar('eval/mean_dice', mean_dice, epoch)
-        writer.add_scalar('eval/overall_accuracy', overall_acc, epoch)
-        writer.add_scalar('eval/mean_class_accuracy', mean_class_acc, epoch)
+        writer.add_scalar('eval/micro_accuracy', micro_acc, epoch)
+        writer.add_scalar('eval/macro_accuracy', macro_acc, epoch)
         
         # Log per-class metrics to tensorboard
         for class_name, iou_val in eval_results['per_class_iou'].items():
@@ -301,10 +301,30 @@ def train(args):
     writer.add_hparams(hparam_dict=hparams, metric_dict={
         'best_mIoU': best_metrics.get('miou', 0.0),
         'best_mean_dice': best_metrics.get('mean_dice', 0.0),
-        'best_overall_accuracy': best_metrics.get('overall_accuracy', 0.0),
+        'best_micro_accuracy': best_metrics.get('micro_accuracy', 0.0),
+        'best_macro_accuracy': best_metrics.get('macro_accuracy', 0.0),
     })
 
     writer.close()
+
+    return model
+
+def test(model, testloader, cfg, logger=None):
+    model.eval()
+    eval_results = inference_evaluate(
+        model=model,
+        dataloader=testloader,
+        num_classes=cfg['nclass'],
+        ignore_index=cfg.get('ignore_index', 255),
+        mode=cfg.get('eval_mode', 'resize'),
+        class_names=None,
+        device='cuda',
+        verbose=True,
+        logger=logger,
+        transform_config=cfg.get('inference', [])
+    )
+    return eval_results
+    
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -313,4 +333,6 @@ if __name__ == '__main__':
     parser.add_argument('--save_path', type=str, default='checkpoints', help='path to save checkpoints and logs')
     args = parser.parse_args()
     
-    train(args)
+    model = train(args)
+
+    print('Training completed.')

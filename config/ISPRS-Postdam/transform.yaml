@@ -2,7 +2,7 @@
 train:
   - name: RandomResizedCrop
     kwargs:
-      size: [*crop_size, *crop_size]
+      size: [252, 252]
       scale: [0.08, 1]
       ratio: [0.75, 1.33]
 

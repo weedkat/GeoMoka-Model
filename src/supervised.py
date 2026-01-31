@@ -210,8 +210,7 @@ def train(args):
         prefetch_factor=cfg.get('prefetch_factor', 2), persistent_workers=cfg.get('persistent_workers', True), drop_last=False
     )
 
-    mask_converter = MaskConverter(cfg['metadata'])
-    class_dict = mask_converter.get_class_dict()
+    class_dict = train_ds.mc.class_dict if hasattr(train_ds, 'mc') else None
 
     # ====================== Train =====================================================
 

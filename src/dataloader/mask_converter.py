@@ -1,9 +1,11 @@
 import numpy as np
 import yaml
+from pathlib import Path    
+
 
 class MaskConverter:
     def __init__(self, metadata):
-        if isinstance(metadata, str):
+        if isinstance(metadata, (str, Path)):
             metadata = yaml.load(open(metadata, 'r'), Loader=yaml.Loader)
         
         self.class_dict = metadata["class_dict"]

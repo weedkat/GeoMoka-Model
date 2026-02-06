@@ -1,8 +1,9 @@
 define: &ignore_index 255
+define: &crop_size 252
 
 # arguments for dataset
 dataset: ISPRS-Postdam
-crop_size: 252
+crop_size: *crop_size
 nsample: 3000
 nclass: 5
 in_channels: 3
@@ -12,7 +13,6 @@ train_split: dataset/ISPRS-Postdam/splits/train.csv
 val_split: dataset/ISPRS-Postdam/splits/val.csv
 test_split: dataset/ISPRS-Postdam/splits/test.csv
 metadata: config/ISPRS-Postdam/metadata.yaml
-transform: config/ISPRS-Postdam/transform.yaml
 
 # arguments for data loader, tweak if training is slow or low gpu utilization
 batch_size: 8  # Can use larger batch with smaller models
@@ -36,8 +36,69 @@ conf_thresh: 0.95
 eval_mode: sliding_window
 
 # arguments for model
-model: deeplabv3  # Options: unet, unet++, deeplabv3, deeplabv3+, fpn, pspnet, pan, linknet, manet, dpt
-backbone: resnet50  # Options: resnet50, efficientnet-b4, mobilenet_v2, etc. (see smp docs)
-pretrained: true  # Use ImageNet pretrained weights
+model: deeplabv3 # Options: unet, unet++, deeplabv3, deeplabv3+, fpn, pspnet, pan, linknet, manet, dpt
+model_name: deeplabv3_resnet50_isprs_postdam # Options: resnet50, efficientnet-b4, mobilenet_v2, etc. (see smp docs)
 lock_backbone: false  # Train encoder
-model_name: deeplabv3_resnet50_isprs_postdam
+model_kwargs:
+  encoder_name: resnet50
+  encoder_weights: imagenet
+
+
+# arguments for transformations, Refer to Albumentations library for more details
+train:
+  - name: RandomResizedCrop
+    kwargs:
+      size: [*crop_size, *crop_size]
+      scale: [0.08, 1]
+      ratio: [0.75, 1.33]
+
+  - name: HorizontalFlip
+    kwargs:
+      p: 0.5
+
+  - name: VerticalFlip
+    kwargs:
+      p: 0.3
+
+  - name: RandomRotate90
+    kwargs:
+      p: 0.5
+
+  - name: OneOf
+    kwargs:
+      transforms:
+        - name: ColorJitter
+          kwargs:
+            brightness: 0.2
+            contrast: 0.2
+            saturation: 0.2
+            hue: 0.1
+            p: 1.0
+        - name: RandomBrightnessContrast
+          kwargs:
+            brightness_limit: 0.2
+            contrast_limit: 0.2
+            p: 1.0
+      p: 0.5
+
+  # - name: GaussianBlur
+  #   kwargs:
+  #     blur_limit: 3
+  #     p: 0.3
+  
+  - name: Normalize
+    kwargs:
+      mean: [0.485, 0.456, 0.406]
+      std: [0.229, 0.224, 0.225]
+
+  - name: ToTensorV2
+    kwargs: {}
+
+inference:
+  - name: Normalize
+    kwargs:
+      mean: [0.485, 0.456, 0.406]
+      std: [0.229, 0.224, 0.225]
+  
+  - name: ToTensorV2
+    kwargs: {}

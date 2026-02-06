@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "geomoka-model"
+version = "0.1.0"
+description = "Geospatial semantic segmentation framework with DINOv2 and SMP support"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "Fatah Muria", email = "fatahmurbaut@gmail.com"}
+]
+keywords = ["segmentation", "geospatial", "remote-sensing", "dinov2", "pytorch"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+]
+
+dependencies = [
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    "numpy>=1.21.0",
+    "pandas>=1.3.0",
+    "pillow>=9.0.0",
+    "pyyaml>=6.0",
+    "rasterio>=1.3.0",
+    "albumentations>=1.3.0",
+    "segmentation-models-pytorch>=0.3.0",
+    "tensorboard>=2.12.0",
+    "tqdm>=4.64.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=22.0.0",
+    "isort>=5.11.0",
+    "flake8>=4.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/geomoka-model"
+Documentation = "https://github.com/yourusername/geomoka-model#readme"
+Repository = "https://github.com/yourusername/geomoka-model.git"
+Issues = "https://github.com/yourusername/geomoka-model/issues"
+
+[tool.setuptools]
+packages = ["geomoka", "visualizer"]
+package-dir = {"" = "src"}
+
+[tool.setuptools.package-data]
+geomoka = ["**/*.py"]

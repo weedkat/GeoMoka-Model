@@ -1,3 +1,7 @@
+from typing import Union
+import torch
+from torch import nn
+
 from geomoka.inference.engine import SegmentationInference
 
 class RasterioSegmentationInference(SegmentationInference):
@@ -8,18 +12,18 @@ class RasterioSegmentationInference(SegmentationInference):
         self,
         model: nn.Module,
         patch_size: int,
-        overlap: int = 0,
-        batch_size: int = 4,
-        num_workers: int = 2,
+        overlap_ratio: float = 0.5,
         device: Union[str, torch.device] = 'cuda',
-        num_classes: int = None,
+        transform_cfg: dict = None,
+        reject_class: int = 255,
+        load_messages: bool = True,
     ):
         super().__init__(
             model=model,
             patch_size=patch_size,
-            overlap=overlap,
-            batch_size=batch_size,
-            num_workers=num_workers,
+            overlap_ratio=overlap_ratio,
+            transform_cfg=transform_cfg,
+            reject_class=reject_class,
+            load_messages=load_messages,
             device=device,
-            num_classes=num_classes,
         )

@@ -40,9 +40,8 @@ def format_evaluation_results(
 def evaluate(
     pred: np.ndarray,
     target: np.ndarray,
-    num_classes: int,
+    class_dict: Dict[int, Dict],
     ignore_index: int = 255,
-    class_dict: Optional[List[Dict]] = None,
     verbose: bool = False,
     logger: Optional[logging.Logger] = None
 ) -> Dict:
@@ -52,9 +51,8 @@ def evaluate(
     Args:
         pred: Predicted labels (H, W) or (N, H, W) for multiple images
         target: Ground truth labels, same shape as pred
-        num_classes: Number of classes
+        class_dict: Class dictionary mapping class_id -> metadata (mandatory)
         ignore_index: Label to ignore in evaluation
-        class_names: Optional list of class names
         verbose: Print detailed results to console
         logger: Optional logger instance for logging results
         
@@ -71,6 +69,8 @@ def evaluate(
     if isinstance(target, torch.Tensor):
         target = target.cpu().numpy()
     
+    num_classes = len(class_dict)
+
     # Compute confusion matrix
     confusion_matrix = compute_confusion_matrix(pred, target, num_classes, ignore_index)
     
@@ -105,10 +105,9 @@ def evaluate(
 def inference_evaluate(
     model,
     dataloader: DataLoader,
-    num_classes: int,
+    class_dict: Dict[int, Dict],
     ignore_index: int = 255,
     mode: str = 'resize',
-    class_dict: Optional[List[Dict]] = None,
     device: str = 'auto',
     verbose: bool = True,
     logger: Optional[logging.Logger] = None,
@@ -122,10 +121,9 @@ def inference_evaluate(
     Args:
         model: Trained segmentation model
         dataloader: DataLoader for evaluation dataset
-        num_classes: Number of classes
         ignore_index: Label to ignore in evaluation
         mode: Inference mode ('resize' or 'sliding_window')
-        class_dict: Optional list of class dictionaries for better readability
+        class_dict: List of class dictionaries (mandatory)
         device: Device for inference ('auto', 'cuda', or 'cpu')
         verbose: Print progress and results to console
         logger: Optional logger instance for logging results
@@ -137,8 +135,15 @@ def inference_evaluate(
     assert (mode == 'sliding_window' and patch_size is not None) or mode == 'resize', \
         "For 'sliding_window' mode, patch_size must be provided."
 
-    inferencer = SegmentationInference(model, num_classes=num_classes, device=device, 
-                                       patch_size=patch_size, load_messages=False, transform_cfg=transform_cfg)
+    num_classes = len(class_dict)
+
+    inferencer = SegmentationInference(
+        model=model,
+        patch_size=patch_size,
+        device=device,
+        load_messages=False,
+        transform_cfg=transform_cfg,
+    )
     
     all_preds = []
     all_targets = []
@@ -146,39 +151,25 @@ def inference_evaluate(
     iterator = tqdm(dataloader, desc="Evaluating") if verbose else dataloader
     
     for images, targets in iterator:
-        # Handle batched inputs
-        if images.dim() == 4:  # (B, C, H, W)
-            batch_size = images.size(0)
-            for i in range(batch_size):
-                img = images[i]
-                target = targets[i]
-                if isinstance(target, torch.Tensor):
-                    target = target.numpy()
-                
-                # Inference
-                pred, _ = inferencer(img, mode=mode, return_confidence=False, verbose=False)
-                
-                all_preds.append(pred)
-                all_targets.append(target)
+        if isinstance(targets, torch.Tensor):
+            targets_np = targets.cpu().numpy()
         else:
-            target = targets
-            if isinstance(target, torch.Tensor):
-                target = target.numpy()
-            pred, _ = inferencer(images, mode=mode, return_confidence=False, verbose=False)
-            all_preds.append(pred)
-            all_targets.append(target)
+            targets_np = targets
+        
+        pred, _, _ = inferencer(images, mode=mode, verbose=False)
+        all_preds.append(pred)
+        all_targets.append(targets_np)
     
     # Stack all predictions and targets
-    all_preds = np.array(all_preds)
-    all_targets = np.array(all_targets)
+    all_preds = np.concatenate(all_preds, axis=0)
+    all_targets = np.concatenate(all_targets, axis=0)
     
     # Call the main evaluate function
     results = evaluate(
         pred=all_preds,
         target=all_targets,
-        num_classes=num_classes,
-        ignore_index=ignore_index,
         class_dict=class_dict,
+        ignore_index=ignore_index,
         verbose=verbose,
         logger=logger
     )

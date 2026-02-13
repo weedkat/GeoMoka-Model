@@ -5,18 +5,15 @@ Model and Trainer wrappers for clean separation of concerns.
 """
 
 import torch
-import torch.nn as nn
 from pathlib import Path
 from typing import Dict, Any, Optional, Union, Tuple
-import yaml
-import numpy as np
 
-from geomoka.dataloader.transform import TransformsCompose
 from geomoka.model.build_model import build_segmentation_model
 from geomoka.dataloader.mask_converter import MaskConverter
+from geomoka.inference.engine import SegmentationInference
 
 
-class SegmentationModel(nn.Module):
+class SegmentationModel:
     """
     Unified model wrapper for loading, inference, and metadata management.
     
@@ -47,26 +44,36 @@ class SegmentationModel(nn.Module):
         """
         super().__init__()
         self.model_cfg = model_cfg
-        self.transform_cfg = transform_cfg
         self.model = build_segmentation_model(**model_cfg)
+        self.transform_cfg = transform_cfg
         self.metadata = metadata
-        self.device = self._setup_device(device)
         
         # Class interpreter
         self.mc = MaskConverter(metadata)
-        
-        # Initialize transforms
-        self.transform = TransformsCompose(transform_cfg) if transform_cfg else None
-        
-        # Move model to device
-        self.to(self.device)
-        self.eval()
+        self.nclass = len(self.mc.get_class_dict())
+
+        # Device
+        self.device = self._setup_device(device)
+        self.model.to(self.device)
+
+        # Inferencer
+        self.inferencer = SegmentationInference(
+            model=self.model,
+            patch_size=model_cfg['crop_size'],
+            overlap_ratio=0.5,
+            device=self.device,
+            transform_cfg=transform_cfg.get('inference', []),
+            reject_class=metadata.get('ignore_index', 255),
+        )
     
-    def forward(self, images: torch.Tensor) -> torch.Tensor:
-        return self.model(images)
+    def __call__(self, x):
+        return self.model(x)
+
+    def predict(self, images, **kwargs) -> torch.Tensor:
+        return self.inferencer(images, **kwargs)
     
     @classmethod
-    def from_pth(cls, pth_path: Union[str, Path]) -> 'SegmentationModel':
+    def load(cls, pth_path: Union[str, Path]) -> 'SegmentationModel':
         """
         Load model from checkpoint.
         
@@ -114,6 +121,19 @@ class SegmentationModel(nn.Module):
     def get_class_dict(self) -> Dict[int, str]:
         """ Get class dictionary from metadata. """
         return self.mc.get_class_dict()
+    
+    def get_encoder_decoder_params(self):
+        model = self.model
+        if hasattr(model, 'encoder'):  # smp models
+            encoder_params = model.encoder.parameters()
+            decoder_params = [p for n, p in model.named_parameters() if 'encoder' not in n]
+        elif hasattr(model, 'backbone'):  # DPT models
+            encoder_params = model.backbone.parameters()
+            decoder_params = [p for n, p in model.named_parameters() if 'backbone' not in n]
+        else:
+            raise ValueError('Model does not have encoder/backbone attribute for optimizer setup.')
+        
+        return encoder_params, decoder_params
     
     def _setup_device(self, device: str) -> torch.device:
         """Setup torch device."""

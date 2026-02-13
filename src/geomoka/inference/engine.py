@@ -1,3 +1,4 @@
+from pathlib import Path
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
@@ -9,6 +10,7 @@ from dataloader.transform import TransformsCompose
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
+
 class SegmentationInference:
     """
     Inference wrapper for semantic segmentation models.
@@ -18,7 +20,7 @@ class SegmentationInference:
     2. 'sliding_window': Patch-based inference with overlap and stitching
     
     Args:
-        model: Trained segmentation model (DPT-based)
+        model: Trained segmentation model
         device: 'auto' (GPU if available), 'cuda', or 'cpu'
         patch_size: Patch size of the backbone (default 14 for DINOv2)
         overlap_ratio: Overlap ratio for sliding window (0.0-1.0, default 0.5)
@@ -27,12 +29,12 @@ class SegmentationInference:
     def __init__(
         self,
         model,
-        device: str = 'auto',
-        patch_size: int = 14,
+        patch_size,
         overlap_ratio: float = 0.5,
-        load_messages: bool = True,
         transform_cfg: dict = None,
         reject_class: int = 255,
+        load_messages: bool = True,
+        device: str = 'auto',
     ):
         self.model = model
         self.patch_size = patch_size
@@ -61,10 +63,10 @@ class SegmentationInference:
         if load_messages:
             print(f'[Inference] Model loaded on {self.device}')
             print(f'[Inference] Num classes: {self.num_classes}')
-     
+
     def __call__(
         self,
-        images: Union[Image.Image, np.ndarray, torch.Tensor, List, DataLoader],
+        images: Union[Image.Image, np.ndarray, torch.Tensor],
         mode: str = 'sliding_window',
         verbose: bool = True,
     ) -> Union[Tuple[np.ndarray, Dict], Tuple[np.ndarray, np.ndarray, Dict]]:
@@ -72,7 +74,7 @@ class SegmentationInference:
         Perform inference on input image(s).
         
         Args:
-            image: Single image (PIL/numpy/tensor) or batch (list/DataLoader)
+            image: Single image (PIL/numpy/tensor) or batch tensor/ndarray
             mode: 'sliding_window' or 'resize'
             verbose: Print processing info
             
@@ -89,32 +91,6 @@ class SegmentationInference:
         assert mode in ['resize', 'sliding_window'], f"Invalid mode: {mode}"
         
         start_time = time.time()
-        
-        # Handle different input types
-        is_batch = isinstance(images, (list, DataLoader))
-        
-        if is_batch:
-            preds = []
-            confs = []
-            metadatas = []
-            for img in images:
-                pred, conf, metadata = self(img, mode, verbose=False)
-                preds.append(pred)
-                confs.append(conf)
-                metadatas.append(metadata)
-            
-            # Stack into single batch arrays
-            preds = np.concatenate(preds, axis=0)  # (Total_B, H, W)
-            confs = np.concatenate(confs, axis=0)  # (Total_B, H, W, C)
-            elapsed = time.time() - start_time
-            
-            metadata = metadatas[0]
-            metadata['processing_time'] = elapsed
-            
-            if verbose:
-                print(f'[Inference] Processed {len(preds)} images in {elapsed:.2f}s')
-
-            return preds, confs, metadata
         
         # Single image inference
         img_tensor, orig_shape, input_type = self._normalize_input(images)
@@ -227,6 +203,7 @@ class SegmentationInference:
             threshold: Confidence threshold [0, 1]. None to disable.
             reject_class: Class ID for rejected pixels
         """
+        assert 0.0 <= threshold <= 1.0, "Threshold must be in [0, 1]"
         self.confidence_threshold = threshold
     
     def get_confidence_stats(

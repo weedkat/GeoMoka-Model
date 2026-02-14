@@ -248,7 +248,16 @@ class SegmentationInference:
             orig_shape: (H, W) tuple
             input_type: str indicating original type
         """
-        # Convert to numpy for albumentations transformation to (H, W, C) or (B, H, W, C) format
+        # Handle tensor inputs that are already properly formatted
+        if isinstance(image, torch.Tensor):
+            if image.ndim == 4:  # (B, C, H, W) - already transformed
+                orig_shape = (image.shape[2], image.shape[3])
+                return image.to(self.device), orig_shape, 'tensor'
+            elif image.ndim == 3 and image.shape[0] in [1, 3]:  # (C, H, W) - already transformed
+                orig_shape = (image.shape[1], image.shape[2])
+                return image.unsqueeze(0).to(self.device), orig_shape, 'tensor'
+        
+        # For numpy arrays and PIL images, apply transforms
         if isinstance(image, Image.Image):
             img_np = np.array(image)
             input_type = 'PIL'
@@ -258,19 +267,12 @@ class SegmentationInference:
             input_type = 'numpy'
             
         elif isinstance(image, torch.Tensor):
-            if image.ndim == 4:  # Already (B, C, H, W)
-                img_np = image.cpu().numpy().transpose(0, 2, 3, 1)  # to (B, H, W, C)
-                input_type = 'tensor'
-
-            elif image.ndim == 3:
-                if image.shape[0] == 3 or image.shape[0] == 1:  # (C, H, W)
-                    img_np = image.cpu().numpy().transpose(1, 2, 0)
-                else:  # Assume (H, W, C)
-                    img_np = image.cpu().numpy()
-                input_type = 'tensor'
-
+            # Tensor not in standard format - convert to numpy for transform
+            if image.ndim == 3 and image.shape[0] not in [1, 3]:  # (H, W, C)
+                img_np = image.cpu().numpy()
             else:
-                raise ValueError(f"Expected 3D or 4D tensor, got {image.ndim}D")
+                raise ValueError(f"Unexpected tensor format: {image.shape}")
+            input_type = 'tensor'
 
         else:
             raise TypeError(f"Unsupported input type: {type(image)}")
@@ -280,10 +282,6 @@ class SegmentationInference:
             # Already batched (B, H, W, C)
             pass
         # Ensure (H, W, C) format for single images
-        elif img_np.ndim == 2:
-            img_np = np.expand_dims(img_np, axis=-1)  # (H, W, 1)
-            img_np = np.expand_dims(img_np, axis=0)  # (1, H, W, 1)
-
         elif img_np.ndim == 2:
             img_np = np.expand_dims(img_np, axis=-1)  # (H, W, 1)
             img_np = np.expand_dims(img_np, axis=0)  # (1, H, W, 1)

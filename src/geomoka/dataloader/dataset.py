@@ -13,7 +13,7 @@ from PIL import Image
 
 warnings.filterwarnings('ignore', category=NotGeoreferencedWarning)
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 
 # The mask output for standardized dataset is in range [0, num_classes-1], compatible with torch criterion module
 class ISPRSPostdam(Dataset):

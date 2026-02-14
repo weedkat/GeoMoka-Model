@@ -11,7 +11,7 @@ except ImportError:
     SMP_AVAILABLE = False
     print("Warning: segmentation_models_pytorch not installed. Only DPT models available.")
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 PRETRAINED_DIR = PROJECT_ROOT / 'pretrained'
 
 # Map model names to smp classes

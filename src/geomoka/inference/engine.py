@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 import time
 from typing import Union, Tuple, Dict, List
-from dataloader.transform import TransformsCompose
+from geomoka.dataloader.transform import TransformsCompose
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 

@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from typing import Dict, Any, Optional, Union
 from pathlib import Path
 import yaml
-from util.utils import count_params, init_log, generate_model_name
+from geomoka.util.utils import count_params, init_log, generate_model_name
 import logging
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim import AdamW

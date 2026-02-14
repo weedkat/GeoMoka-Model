@@ -3,8 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from model.backbone.dinov2 import DINOv2
-from model.util.blocks import FeatureFusionBlock, _make_scratch
+from geomoka.model.backbone.dinov2 import DINOv2
+from geomoka.model.util.blocks import FeatureFusionBlock, _make_scratch
 
 
 def _make_fusion_block(features, use_bn, size=None):

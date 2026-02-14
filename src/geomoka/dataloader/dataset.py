@@ -6,7 +6,7 @@ import glob
 import rasterio
 import warnings
 import pandas as pd
-from dataloader.mask_converter import MaskConverter
+from geomoka.dataloader.mask_converter import MaskConverter
 import yaml
 from rasterio.errors import NotGeoreferencedWarning
 from PIL import Image

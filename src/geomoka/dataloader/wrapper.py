@@ -1,5 +1,5 @@
-from dataloader.transform import *
-from dataloader.transform import TransformsCompose
+from geomoka.dataloader.transform import *
+from geomoka.dataloader.transform import TransformsCompose
 
 from copy import deepcopy
 import math

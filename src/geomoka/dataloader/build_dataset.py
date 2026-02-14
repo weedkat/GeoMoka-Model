@@ -1,4 +1,4 @@
-from dataloader.dataset import ISPRSPostdam, GenericDataset
+from geomoka.dataloader.dataset import ISPRSPostdam, GenericDataset
 
 dataset_map = {
     "ISPRS-Postdam": ISPRSPostdam,

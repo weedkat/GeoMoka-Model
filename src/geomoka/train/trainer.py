@@ -110,8 +110,9 @@ class SegmentationTrainer:
         writer = SummaryWriter(str(save_path))
 
         # ==================== Model ====================
-
+        print('Building model...')
         model = SegmentationModel(model_cfg, transform_cfg, metadata)
+        print('Model built successfully.')
 
         # ==================== Optimizer ====================
         encoder_params, decoder_params = model.get_encoder_decoder_params()
@@ -136,7 +137,9 @@ class SegmentationTrainer:
         logger.info(f'Total params: {count_params(model.model):.1f}M\n')
 
         # ==================== DataLoader ========================
+        print('Building dataloaders...')
         trainloader, valloader = cls.build_supervised_dataloader(cfg)
+        print('Dataloaders built successfully.\n')
 
         return cls(
             model=model,
@@ -178,7 +181,7 @@ class SegmentationTrainer:
             num_workers=loader_cfg.get('num_workers_train', 4), 
             pin_memory=loader_cfg.get('pin_memory', True), 
             prefetch_factor=loader_cfg.get('prefetch_factor', 2), 
-            persistent_workers=loader_cfg.get('persistent_workers', True), 
+            persistent_workers=loader_cfg.get('persistent_workers', False),  # Changed default to False for faster startup
             drop_last=True,
             shuffle=True,
         )
@@ -188,7 +191,7 @@ class SegmentationTrainer:
             num_workers=loader_cfg.get('num_workers_val', 2), 
             pin_memory=loader_cfg.get('pin_memory', True),
             prefetch_factor=loader_cfg.get('prefetch_factor', 2), 
-            persistent_workers=loader_cfg.get('persistent_workers', True), 
+            persistent_workers=loader_cfg.get('persistent_workers', False),  # Changed default to False for faster startup
             drop_last=False,
         )
 

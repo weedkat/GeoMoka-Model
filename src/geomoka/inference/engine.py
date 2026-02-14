@@ -259,11 +259,11 @@ class SegmentationInference:
             
         elif isinstance(image, torch.Tensor):
             if image.ndim == 4:  # Already (B, C, H, W)
-                img_np = image.cpu().numpy().transpose(0, 2, 3, 1)
+                img_np = image.cpu().numpy().transpose(0, 2, 3, 1)  # to (B, H, W, C)
                 input_type = 'tensor'
 
             elif image.ndim == 3:
-                if image.shape[0] == 3:  # (C, H, W)
+                if image.shape[0] == 3 or image.shape[0] == 1:  # (C, H, W)
                     img_np = image.cpu().numpy().transpose(1, 2, 0)
                 else:  # Assume (H, W, C)
                     img_np = image.cpu().numpy()
@@ -275,14 +275,23 @@ class SegmentationInference:
         else:
             raise TypeError(f"Unsupported input type: {type(image)}")
 
-        # Ensure (H, W, C) format
-        if img_np.ndim == 2:
+        # Handle batched input (B, H, W, C) or (B, H, W)
+        if img_np.ndim == 4:
+            # Already batched (B, H, W, C)
+            pass
+        # Ensure (H, W, C) format for single images
+        elif img_np.ndim == 2:
             img_np = np.expand_dims(img_np, axis=-1)  # (H, W, 1)
+            img_np = np.expand_dims(img_np, axis=0)  # (1, H, W, 1)
 
-        # Add batch dimension if single image
-        if img_np.ndim == 3:
+        elif img_np.ndim == 2:
+            img_np = np.expand_dims(img_np, axis=-1)  # (H, W, 1)
+            img_np = np.expand_dims(img_np, axis=0)  # (1, H, W, 1)
+        # Add batch dimension if single image (H, W, C)
+        elif img_np.ndim == 3:
             img_np = np.expand_dims(img_np, axis=0)  # (1, H, W, C)
         
+        # Now img_np is (B, H, W, C)
         orig_shape = (img_np.shape[1], img_np.shape[2])  # (H, W)
         
         # Ensure uint8

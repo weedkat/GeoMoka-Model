@@ -2,7 +2,7 @@ import os
 import torch
 from pathlib import Path
 
-from model.semseg.dpt import DPT
+from geomoka.model.semseg.dpt import DPT
 
 try:
     import segmentation_models_pytorch as smp

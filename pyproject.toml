@@ -28,6 +28,6 @@ Issues = "https://github.com/yourusername/geomoka-model/issues"
 [tool.setuptools]
 package-dir = {"" = "src"}
 
-[tool.scripts]
+[project.scripts]
 geomoka-train = "geomoka.cli.train:main"
 

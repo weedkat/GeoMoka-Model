@@ -73,12 +73,12 @@ def build_dpt_model(in_chans, nclass, backbone, lock_backbone=True, pretrain_dir
     
     return model
 
-def build_smp_model(model_name, in_chans, nclass, encoder_name, encoder_weights, lock_backbone=True, **kwargs):
+def build_smp_model(model, in_chans, nclass, encoder_name, encoder_weights, lock_backbone=True, **kwargs):
     if not SMP_AVAILABLE:
         raise ImportError("segmentation_models_pytorch is required for non-DPT models. Install with: pip install segmentation-models-pytorch")
     
     # Build model
-    model = model_map[model_name](
+    model = model_map[model](
         in_channels=in_chans,
         classes=nclass,
         encoder_name=encoder_name,
@@ -91,10 +91,10 @@ def build_smp_model(model_name, in_chans, nclass, encoder_name, encoder_weights,
             param.requires_grad = False
         print('Encoder frozen')
     
-    print(f'Built {model_name} model with {in_chans} input channels and {nclass} classes with lock_backbone={lock_backbone}')
+    print(f'Built {model} model with {in_chans} input channels and {nclass} classes with lock_backbone={lock_backbone}')
     
 
-def build_segmentation_model(model_name,  
+def build_segmentation_model(model,  
                              in_channels, 
                              nclass,  
                              lock_backbone=True,
@@ -104,7 +104,7 @@ def build_segmentation_model(model_name,
     Build segmentation model from either smp library or custom DPT.
     
     Args:
-        model_name: Model architecture ('unet', 'unet++', 'deeplabv3', 'deeplabv3+', 'fpn', 'pspnet', 'pan', 'linknet', 'manet', 'dpt')
+        model: Model architecture ('unet', 'unet++', 'deeplabv3', 'deeplabv3+', 'fpn', 'pspnet', 'pan', 'linknet', 'manet', 'dpt')
         backbone: Encoder backbone (e.g., 'resnet50', 'efficientnet-b4', 'dinov2_base', etc.)
         nclass: Number of classes
         pretrained: Use ImageNet pretrained weights (for smp models)
@@ -115,12 +115,12 @@ def build_segmentation_model(model_name,
     Returns:
         PyTorch model
     """
-    model_name = model_name.lower()
+    model = model.lower()
 
-    if model_name not in model_map:
-        raise ValueError(f"Unknown model: {model_name}. Available: {list(model_map.keys())}")
+    if model not in model_map:
+        raise ValueError(f"Unknown model: {model}. Available: {list(model_map.keys())}")
     
-    if model_name == 'dpt':
+    if model == 'dpt':
         backbone = model_kwargs.get('backbone', None)
         if backbone is None:
             backbone = 'dinov2_base'
@@ -138,6 +138,6 @@ def build_segmentation_model(model_name,
             print("encoder_weights not specified in model_kwargs for SMP models. Defaulting to 'imagenet'.")
             encoder_weights = 'imagenet'  # default to imagenet if not specified
 
-        model = build_smp_model(model_name, in_channels, nclass, encoder_name, encoder_weights, lock_backbone, **kwargs)    
+        model = build_smp_model(model, in_channels, nclass, encoder_name, encoder_weights, lock_backbone, **kwargs)    
 
     return model

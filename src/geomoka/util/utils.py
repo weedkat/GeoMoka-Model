@@ -101,5 +101,6 @@ def generate_model_name(cfg):
     config_str = json.dumps(config_for_hash, sort_keys=True, default=str)
     config_hash = hashlib.md5(config_str.encode()).hexdigest()[:8]
     
-    base_name = cfg.get('model_name', 'model')
+    model_cfg = cfg.get('model_cfg', {})
+    base_name = model_cfg.get('model_name', 'model')
     return f"{base_name}_{config_hash}"

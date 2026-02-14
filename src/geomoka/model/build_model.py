@@ -98,8 +98,8 @@ def build_segmentation_model(model,
                              in_channels, 
                              nclass,  
                              lock_backbone=True,
-                             model_kwargs={},
-                             **kwargs):
+                             model_kwargs={}
+                             ):
     """
     Build segmentation model from either smp library or custom DPT.
     

@@ -44,7 +44,11 @@ class SegmentationModel:
         """
         super().__init__()
         self.model_cfg = model_cfg
-        self.model = build_segmentation_model(**model_cfg)
+        self.model = build_segmentation_model(model=model_cfg['model'],
+                                              in_channels=model_cfg['in_channels'],
+                                              nclass=len(metadata['class_dict']),
+                                              lock_backbone=model_cfg.get('lock_backbone', False),
+                                              model_kwargs=model_cfg.get('model_kwargs', {}))
         self.transform_cfg = transform_cfg
         self.metadata = metadata
         

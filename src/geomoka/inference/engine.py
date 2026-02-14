@@ -250,12 +250,22 @@ class SegmentationInference:
         """
         # Handle tensor inputs that are already properly formatted
         if isinstance(image, torch.Tensor):
-            if image.ndim == 4:  # (B, C, H, W) - already transformed
-                orig_shape = (image.shape[2], image.shape[3])
-                return image.to(self.device), orig_shape, 'tensor'
+            if image.ndim == 4:  # Could be (B, C, H, W) or (B, H, W, C)
+                # Check if it's already in (B, C, H, W) format
+                # Heuristic: if dim 1 is small (1-4), assume it's channels
+                if image.shape[1] <= 4:  # (B, C, H, W) - already transformed
+                    orig_shape = (image.shape[2], image.shape[3])
+                    return image.to(self.device), orig_shape, 'tensor'
+                else:  # (B, H, W, C) - needs transpose
+                    img_np = image.cpu().numpy()
+                    input_type = 'tensor'
             elif image.ndim == 3 and image.shape[0] in [1, 3]:  # (C, H, W) - already transformed
                 orig_shape = (image.shape[1], image.shape[2])
                 return image.unsqueeze(0).to(self.device), orig_shape, 'tensor'
+            else:
+                # Other tensor formats - convert to numpy for transform
+                img_np = image.cpu().numpy()
+                input_type = 'tensor'
         
         # For numpy arrays and PIL images, apply transforms
         if isinstance(image, Image.Image):
@@ -266,15 +276,7 @@ class SegmentationInference:
             img_np = image
             input_type = 'numpy'
             
-        elif isinstance(image, torch.Tensor):
-            # Tensor not in standard format - convert to numpy for transform
-            if image.ndim == 3 and image.shape[0] not in [1, 3]:  # (H, W, C)
-                img_np = image.cpu().numpy()
-            else:
-                raise ValueError(f"Unexpected tensor format: {image.shape}")
-            input_type = 'tensor'
-
-        else:
+        elif not isinstance(image, torch.Tensor):
             raise TypeError(f"Unsupported input type: {type(image)}")
 
         # Handle batched input (B, H, W, C) or (B, H, W)

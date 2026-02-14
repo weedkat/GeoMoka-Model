@@ -12,3 +12,8 @@ checkpoints/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+
+# packaging / build artifacts
+*.egg-info/
+dist/
+build/

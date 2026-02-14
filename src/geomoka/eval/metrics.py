@@ -95,7 +95,7 @@ def compute_iou(
         iou_per_class.append(iou)
         
         # Create dict key
-        if class_dict and i < len(class_dict):
+        if class_dict and i in class_dict:
             key = f"class_{i}_{class_dict[i]['name']}"
         else:
             key = f"class_{i}"
@@ -117,7 +117,7 @@ def compute_dice_coefficient(
     target: np.ndarray,
     num_classes: int,
     ignore_index: int = 255,
-    class_dict: Optional[List[Dict]] = None
+    class_dict: Optional[Dict[int, Dict]] = None
 ) -> Dict:
     """
     Compute Dice coefficient (F1 score) for each class.
@@ -125,9 +125,9 @@ def compute_dice_coefficient(
     Args:
         pred: Predicted labels
         target: Ground truth labels
-        num_classes: Number of classes
+        num_classes: Number of classes (excluding ignore_index)
         ignore_index: Label to ignore
-        class_dict: Optional list of class dictionaries for better readability
+        class_dict: Optional dict mapping class_id -> metadata for better readability
         
     Returns:
         Dictionary containing per-class Dice and mean Dice
@@ -160,7 +160,7 @@ def compute_dice_coefficient(
         
         dice_values.append(dice)
         
-        if class_dict and i < len(class_dict):
+        if class_dict and i in class_dict:
             key = f"class_{i}_{class_dict[i]['name']}"
         else:
             key = f"class_{i}"

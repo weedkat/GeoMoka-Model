@@ -61,13 +61,21 @@ class MaskConverter:
 
         return mask_rgb
     
-    def get_class_dict(self):
+    def get_class_dict(self, exclude_ignore=False, ignore_index=255):
         """ Returns the class dictionary. If class_map is provided, returns a remapped class dictionary.
+        
+        Args:
+            exclude_ignore: If True, excludes the ignore_index from returned dict
+            ignore_index: The index to exclude when exclude_ignore=True
         """
         if class_map := self.class_map:
             mapped_class_dict = {}
             for index, class_id in class_map.items():
                 mapped_class_dict[index] = self.class_dict[class_id]
-            return mapped_class_dict
+            result = mapped_class_dict
+        else:
+            result = self.class_dict
         
-        return self.class_dict
+        if exclude_ignore:
+            return {k: v for k, v in result.items() if k != ignore_index}
+        return result

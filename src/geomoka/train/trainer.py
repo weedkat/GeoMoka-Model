@@ -58,7 +58,7 @@ class SegmentationTrainer:
         self.writer = writer
         self.logger = logger
         self.device = model.device
-        self.class_dict = model.mc.get_class_dict()
+        self.class_dict = model.mc.get_class_dict(exclude_ignore=True)
 
     @classmethod
     def from_config(cls, config_path: Union[str, Path], save_dir: str = 'outputs'):

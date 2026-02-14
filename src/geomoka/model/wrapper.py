@@ -54,7 +54,8 @@ class SegmentationModel:
         
         # Class interpreter
         self.mc = MaskConverter(metadata)
-        self.nclass = len(self.mc.get_class_dict())
+        ignore_idx = metadata.get('ignore_index', 255)
+        self.nclass = len(self.mc.get_class_dict(exclude_ignore=True, ignore_index=ignore_idx))
 
         # Device
         self.device = self._setup_device(device)

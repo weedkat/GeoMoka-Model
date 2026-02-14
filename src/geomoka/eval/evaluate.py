@@ -69,7 +69,8 @@ def evaluate(
     if isinstance(target, torch.Tensor):
         target = target.cpu().numpy()
     
-    num_classes = len(class_dict)
+    # Count only valid classes (exclude ignore_index from class_dict)
+    num_classes = len([k for k in class_dict.keys() if k != ignore_index])
 
     # Compute confusion matrix
     confusion_matrix = compute_confusion_matrix(pred, target, num_classes, ignore_index)
@@ -123,7 +124,7 @@ def inference_evaluate(
         dataloader: DataLoader for evaluation dataset
         ignore_index: Label to ignore in evaluation
         mode: Inference mode ('resize' or 'sliding_window')
-        class_dict: List of class dictionaries (mandatory)
+        class_dict: Dict mapping class_id -> metadata (mandatory, should exclude ignore_index)
         device: Device for inference ('auto', 'cuda', or 'cpu')
         verbose: Print progress and results to console
         logger: Optional logger instance for logging results
@@ -134,8 +135,6 @@ def inference_evaluate(
     """
     assert (mode == 'sliding_window' and patch_size is not None) or mode == 'resize', \
         "For 'sliding_window' mode, patch_size must be provided."
-
-    num_classes = len(class_dict)
 
     inferencer = SegmentationInference(
         model=model,

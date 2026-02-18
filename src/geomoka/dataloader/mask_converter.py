@@ -4,23 +4,21 @@ from pathlib import Path
 
 
 class MaskConverter:
-    """ Handles conversion between RGB masks and class index masks based on provided metadata and vice versa.
-    Also provdes class dictionary retrieval. that returns class dict with remapped indices if class_map is provided.
+    """ 
+    Handles conversion between RGB masks and class index masks based on provided metadata and vice versa.
 
     Args:
-        metadata: Dict or path to YAML file containing 'class_dict' and optional 'class_map'.
+        metadata: Dict or path to YAML file containing 'class_dict'
     """
     def __init__(self, metadata):
         if isinstance(metadata, (str, Path)):
             metadata = yaml.load(open(metadata, 'r'), Loader=yaml.Loader)
         
         self.class_dict = metadata["class_dict"]
-        self.class_map = metadata.get("class_map", {})
-        self.reverse_map = {v: k for k, v in self.class_map.items()}
-        self.class_ids = sorted(self.class_dict.keys())
     
     def rgb_to_class(self, mask_rgb):
-        """ Input is in (H, W, C) format and returns (H, W) format.
+        """ 
+        Input is in (H, W, 3) format and returns (H, W) format.
         """
         if not isinstance(mask_rgb, np.ndarray):
             mask_rgb = np.array(mask_rgb)
@@ -32,16 +30,11 @@ class MaskConverter:
             match = np.all(mask_rgb == item['rgb'], axis=-1)
             target[match] = class_idx
 
-        if self.class_map:
-            mapped_target = np.full((h, w), 255, dtype=np.int64)  # default ignore value
-            for index, class_id in self.class_map.items():
-                mapped_target[target == class_id] = index
-            return mapped_target
-
         return target
     
     def class_to_rgb(self, mask_class):
-        """ Input is in (H, W) format and output is in (H, W, C) format
+        """ 
+        Input is in (H, W) format and output is in (H, W, 3) format
         """
         if not isinstance(mask_class, np.ndarray):
             mask_class = np.array(mask_class)
@@ -49,33 +42,11 @@ class MaskConverter:
         h, w = mask_class.shape
         mask_rgb = np.zeros((h, w, 3), dtype=np.uint8)
 
-        if self.class_map:
-            remapped_mask = np.full((h, w), 255, dtype=np.int64)  # default ignore value
-            for index, class_id in self.reverse_map.items():
-                remapped_mask[mask_class == index] = class_id
-            mask_class = remapped_mask
-
         for class_idx, item in self.class_dict.items():
             rgb = np.array(item["rgb"], dtype=np.uint8)
             mask_rgb[mask_class == class_idx] = rgb
 
         return mask_rgb
     
-    def get_class_dict(self, exclude_ignore=False, ignore_index=255):
-        """ Returns the class dictionary. If class_map is provided, returns a remapped class dictionary.
-        
-        Args:
-            exclude_ignore: If True, excludes the ignore_index from returned dict
-            ignore_index: The index to exclude when exclude_ignore=True
-        """
-        if class_map := self.class_map:
-            mapped_class_dict = {}
-            for index, class_id in class_map.items():
-                mapped_class_dict[index] = self.class_dict[class_id]
-            result = mapped_class_dict
-        else:
-            result = self.class_dict
-        
-        if exclude_ignore:
-            return {k: v for k, v in result.items() if k != ignore_index}
-        return result
+    def get_class_dict(self):
+        return self.class_dict

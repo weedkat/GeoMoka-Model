@@ -1,52 +1,51 @@
-define: &ignore_index 255
+# Arguments for dataset
+dataset: GenericDataset
+root_dir: dataset/
+train_split: dataset/
+val_split: dataset/
+test_split: dataset/
+metadata: config/
+in_channels: 3
 define: &crop_size 252
+crop_size: *crop_size
+ignore_index: 255
 
-# arguments for dataset
-dataset: ISPRS-Postdam
-root_dir: dataset/ISPRS-Postdam
-train_split: dataset/ISPRS-Postdam/splits/train.csv
-val_split: dataset/ISPRS-Postdam/splits/val.csv
-test_split: dataset/ISPRS-Postdam/splits/test.csv
-metadata: config/ISPRS-Postdam/metadata.yaml
-
-# arguments for data loader, tweak if training is slow or low gpu utilization
+# Arguments for data loader, tweak if training is slow or low gpu utilization
 dataloader_cfg:
   batch_size: 4  # Can use larger batch with smaller models
-  num_workers_train: 6  # default 4, Number of workers for training dataloader
-  num_workers_val: 2  # default 2, Number of workers for validation dataloader
+  num_workers_train: 6  # Number of workers for training dataloader
+  num_workers_val: 2  # Number of workers for validation dataloader
   prefetch_factor: 2 # Number of samples loaded in advance by each worker
-  persistent_workers: true
-  pin_memory: true
+  persistent_workers: false # Keep workers alive between epochs for faster loading
+  pin_memory: true # Pin memory for faster GPU transfer
+  # nsample: 3000 # semi supervised learning sample size, not used in fully supervised training
 
-# arguments for training
+# Arguments for training
 train_cfg:
   method: supervised
   epochs: 60
-  lr: 0.000005 # learning rate for backbone
-  lr_multi: 40.0 # learning rate multiplier for decoder and head
+  lr: 0.000005 # learning rate for backbone / encoder
+  lr_multi: 40.0 # learning rate multiplier for head / decoder
   criterion:
     name: CELoss
     kwargs:
-      ignore_index: *ignore_index
       # thresh: 0.7
       # min_kept: 200000
-  conf_thresh: 0.95
+  # conf_thresh: 0.95 # semi supervised confidence threshold, not used in fully supervised training
   eval_mode: sliding_window
   nsample: 3000
-  ignore_index: *ignore_index
 
 # arguments for model
 model_cfg:
-  model: dpt  # Options: unet, unet++, deeplabv3, deeplabv3+, fpn, pspnet, pan, linknet, manet, dpt
-  model_name: dpt_dinov2_small_isprs_postdam
-  lock_backbone: false  # Train encoder
-  in_channels: 3
-  crop_size: *crop_size
-  ignore_index: *ignore_index
-  model_kwargs:
-    backbone: dinov2_small # Options: dpt_base, dpt_large, dpt_small
+  model: dpt_base  # Options: unet, unet++, deeplabv3, deeplabv3+, fpn, pspnet, pan, linknet, manet, dpt
+  model_name: dpt_dinov2_base
+  lock_backbone: false  # Wether to freeze encoder during training
+  kwargs: # Model-specific kwargs, passed to model constructor
+    # encoder_name: resnet50
+    # encoder_weights: imagenet
+    # decoder_channels: 512
   
-# arguments for transformations, Refer to Albumentations library for more details
+# Arguments for transformations, Refer to Albumentations library for more details
 transform_cfg:
   train:
     - name: RandomResizedCrop

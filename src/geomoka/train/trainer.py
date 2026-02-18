@@ -75,6 +75,7 @@ class SegmentationTrainer:
         # Load configuration from YAML file
         cfg = yaml.load(open(config_path, 'r'), Loader=yaml.Loader)
         train_cfg = cfg['train_cfg']
+        train_cfg['ignore_index'] = cfg['ignore_index']  # Pass ignore_index to train_cfg for later use
         model_cfg = cfg['model_cfg']
         transform_cfg = cfg['transform_cfg']
         
@@ -111,6 +112,10 @@ class SegmentationTrainer:
 
         # ==================== Model ====================
         print('Building model...')
+        model_cfg = {**model_cfg,
+            'in_channels': cfg['in_channels'],
+            'crop_size': cfg['crop_size'],
+            'ignore_index': cfg['ignore_index'],}
         model = SegmentationModel(model_cfg, transform_cfg, metadata)
         print('Model built successfully.')
 
@@ -126,10 +131,12 @@ class SegmentationTrainer:
         )
 
         # ==================== Criterion ====================
+        train_kwargs = train_cfg['criterion'].get('kwargs', {})
+        train_kwargs['ignore_index'] = cfg['ignore_index']
         if train_cfg['criterion']['name'] == 'CELoss':
-            criterion = nn.CrossEntropyLoss(**train_cfg['criterion']['kwargs']).cuda()
+            criterion = nn.CrossEntropyLoss(**train_kwargs).to(model.device)
         elif train_cfg['criterion']['name'] == 'OHEM':
-            criterion = ProbOhemCrossEntropy2d(**train_cfg['criterion']['kwargs']).cuda()
+            criterion = ProbOhemCrossEntropy2d(**train_kwargs).to(model.device)
         else:
             raise NotImplementedError(f"{train_cfg['criterion']['name']} criterion is not implemented")
         
@@ -178,20 +185,20 @@ class SegmentationTrainer:
         trainloader = DataLoader(
             trainset, 
             batch_size=loader_cfg['batch_size'], 
-            num_workers=loader_cfg.get('num_workers_train', 4), 
-            pin_memory=loader_cfg.get('pin_memory', True), 
-            prefetch_factor=loader_cfg.get('prefetch_factor', 2), 
-            persistent_workers=loader_cfg.get('persistent_workers', False),  # Changed default to False for faster startup
+            num_workers=loader_cfg['num_workers_train'], 
+            pin_memory=loader_cfg['pin_memory'], 
+            prefetch_factor=loader_cfg['prefetch_factor'], 
+            persistent_workers=loader_cfg['persistent_workers'],
             drop_last=True,
             shuffle=True,
         )
         valloader = DataLoader(
             valset, 
             batch_size=loader_cfg['batch_size'], 
-            num_workers=loader_cfg.get('num_workers_val', 2), 
-            pin_memory=loader_cfg.get('pin_memory', True),
-            prefetch_factor=loader_cfg.get('prefetch_factor', 2), 
-            persistent_workers=loader_cfg.get('persistent_workers', False),  # Changed default to False for faster startup
+            num_workers=loader_cfg['num_workers_train'], 
+            pin_memory=loader_cfg['pin_memory'], 
+            prefetch_factor=loader_cfg['prefetch_factor'], 
+            persistent_workers=loader_cfg['persistent_workers'],
             drop_last=False,
         )
 

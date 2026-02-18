@@ -41,6 +41,14 @@ Issues = "https://github.com/yourusername/geomoka-model/issues"
 [tool.setuptools]
 package-dir = {"" = "src"}
 
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+geomoka = ["templates/**/*.yaml", "templates/**/*.ipynb"]  
+
 [project.scripts]
 geomoka-train = "geomoka.cli.train:main"
-
+geomoka-split = "geomoka.cli.datasplit:main"
+geomoka-scaffold = "geomoka.cli.scaffold:main"
+geomoka-template = "geomoka.cli.template:main"

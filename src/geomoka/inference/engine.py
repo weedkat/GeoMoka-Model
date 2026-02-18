@@ -25,21 +25,26 @@ class SegmentationInference:
         patch_size: Patch size of the backbone (default 14 for DINOv2)
         overlap_ratio: Overlap ratio for sliding window (0.0-1.0, default 0.5)
     """
-    
     def __init__(
         self,
-        model,
-        patch_size,
+        model: torch.nn.Module,
+        patch_size: int,
         overlap_ratio: float = 0.5,
         transform_cfg: dict = None,
         reject_class: int = 255,
         load_messages: bool = True,
+        confidence_threshold: float = 0.0,
         device: str = 'auto',
     ):
+        assert 0.0 <= confidence_threshold <= 1.0, "Threshold must be in [0, 1]"
+        assert 0.0 <= overlap_ratio < 1.0, "Overlap ratio must be in [0, 1)"
+        assert device in ['auto', 'cuda', 'cpu'], f"Invalid device: {device}"
+
         self.model = model
         self.patch_size = patch_size
         self.overlap_ratio = overlap_ratio
         self.reject_class = reject_class
+        self.confidence_threshold = confidence_threshold
 
         # Transform configuration
         if transform_cfg:
@@ -48,11 +53,7 @@ class SegmentationInference:
             print("Warning: No transform_cfg provided, using default ToTensor transform.")
             self.transform = A.Compose([ToTensorV2()])
         
-        # Device setup
-        if device == 'auto':
-            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        else:
-            self.device = device
+        self.device = self._detect_device(device)
             
         self.model = self.model.to(self.device)
         self.model.eval()
@@ -92,7 +93,7 @@ class SegmentationInference:
         
         start_time = time.time()
         
-        # Single image inference
+        # Normalize input to tensor batch and get original shape
         img_tensor, orig_shape, input_type = self._normalize_input(images)
         
         with torch.no_grad():
@@ -104,27 +105,36 @@ class SegmentationInference:
                 raise ValueError(f"Unsupported mode: {mode}")
         
         # Extract predictions and confidence
-        pred = output.argmax(dim=1).cpu().numpy()  # (B, H, W)
-        conf = output.softmax(dim=1).cpu().numpy().transpose(0, 2, 3, 1)  # (B, H, W, C)
+        pred = output.argmax(dim=1).cpu().numpy()  # (B, C, H, W) -> (B, H, W)
+        conf = output.softmax(dim=1).cpu().numpy().transpose(0, 2, 3, 1)  # (B, C, H, W) -> (B, H, W, C)
 
-        max_conf = np.max(conf, axis=-1)  # (B, H, W)
-        pred = self._apply_confidence_rejection(pred, max_conf) if hasattr(self, 'confidence_threshold') else pred
+        # Apply confidence threshold to reject uncertain predictions
+        max_conf = np.max(conf, axis=-1)  # (B, H, W, C) -> (B, H, W)
+        pred[max_conf < self.confidence_threshold] = self.reject_class
         
         elapsed = time.time() - start_time
         
         metadata = {
-            'original_shape': orig_shape,
             'input_type': input_type,
+            'original_shape': orig_shape,
+            'patch_size': self.patch_size,
+            'overlap_ratio': self.overlap_ratio,
+            'confidence_threshold': self.confidence_threshold,
             'mode': mode,
             'device': self.device,
             'processing_time': elapsed,
-            'num_classes': self.num_classes,
+            'num_classes': self.num_classes ,
         }
         
         if verbose:
             print(f'[Inference] Processed {orig_shape} in {elapsed:.2f}s using {mode}')
         
         return pred, conf, metadata
+    
+    def _detect_device(self, device: str) -> None:
+        if device == 'auto':
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        return device
         
     def _detect_num_classes(self) -> int:
         """
@@ -172,69 +182,6 @@ class SegmentationInference:
         raise RuntimeError(
             "Could not detect num_classes. Even with a dummy forward pass."
         )
-    
-    def _apply_confidence_rejection(
-        self,
-        pred: np.ndarray,
-        max_conf: np.ndarray
-    ) -> np.ndarray:
-        """
-        Apply confidence-based rejection to predictions.
-        
-        Args:
-            pred: Predicted labels (H, W)
-            max_conf: Max confidence per pixel (H, W)
-            
-        Returns:
-            pred_rejected: Predictions with low-confidence pixels set to reject_class
-        """
-        if not hasattr(self, 'confidence_threshold'):
-            return pred
-        
-        pred_rejected = pred.copy()
-        pred_rejected[max_conf < self.confidence_threshold] = self.reject_class
-        return pred_rejected
-    
-    def set_confidence_threshold(self, threshold: float) -> None:
-        """
-        Set confidence threshold for rejection.
-        
-        Args:
-            threshold: Confidence threshold [0, 1]. None to disable.
-            reject_class: Class ID for rejected pixels
-        """
-        assert 0.0 <= threshold <= 1.0, "Threshold must be in [0, 1]"
-        self.confidence_threshold = threshold
-    
-    def get_confidence_stats(
-        self,
-        images: Union[List, DataLoader],
-        mode: str = 'sliding_window'
-    ) -> Dict:
-        """
-        Compute confidence statistics over multiple images to guide threshold selection.
-        
-        Args:
-            images: List of images or DataLoader
-            mode: 'resize' or 'sliding_window'
-            
-        Returns:
-            Dictionary with confidence statistics
-        """
-        _, confs, _ = self(images, mode=mode, verbose=False)
-        all_conf = confs.max(axis=-1).flatten()  # (Total_pixels,)
-        
-        return {
-            'mean': float(np.mean(all_conf)),
-            'median': float(np.median(all_conf)),
-            'std': float(np.std(all_conf)),
-            'min': float(np.min(all_conf)),
-            'max': float(np.max(all_conf)),
-            'percentile_10': float(np.percentile(all_conf, 10)),
-            'percentile_25': float(np.percentile(all_conf, 25)),
-            'percentile_75': float(np.percentile(all_conf, 75)),
-            'percentile_90': float(np.percentile(all_conf, 90)),
-        }
     
     def _normalize_input(
         self,

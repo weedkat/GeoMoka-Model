@@ -9,6 +9,9 @@ import albumentations as A
 
 
 class TransformsCompose:
+    """
+    Compose a list of transformations specified in the config.
+    """
     def __init__(self, cfg):
         transforms = [self.build_transforms(spec) for spec in cfg]
         self.transform = A.Compose(transforms)

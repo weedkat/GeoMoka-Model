@@ -89,14 +89,14 @@ class SemiDataset(Dataset):
         return len(self.indices)
     
 
-# Dataset wrapper for supervised training with augmentations.
 class SupervisedDataset(Dataset):
+    """
+    Dataset wrapper for supervised training with augmentations using albumentations module.
+    Args:
+        dataset: Base dataset (e.g., GenericDataset) with __getitem__ returning (image, mask) in numpy form.
+        transform_cfg: List of transform configs. If empty/None, no transforms applied.
+    """
     def __init__(self, dataset, transform_cfg = None):
-        """
-        Args:
-            dataset: Base dataset (e.g., ISPRSPostdam) with __getitem__ returning (image, mask) in numpy form.
-            transform_cfg: List of transform configs. If empty/None, no transforms applied.
-        """
         self.dataset = dataset
         self.transform = TransformsCompose(transform_cfg) if transform_cfg else None
     

@@ -1,5 +1,5 @@
 # index 255 is ignored by model during training, change in train config if needed
-# class dict has to be continuous from 0 to nclass-1, with an optional ignore 
+# class dict has to be continuous from 0 to nclass-1, with an optional ignore. please alter dataset and metadata accordingly
 # bacause mask dataset is in rgb format, it is fine to define the index, otherwise follow the dataset format
 class_dict: 
   0:
@@ -20,10 +20,3 @@ class_dict:
   255:
     name: Background
     rgb : [255, 0, 0]
-
-# if dataset in index form and not continuous, provide mapping from index to training class
-# class_map:
-#   1: 0
-#   2: 1
-#   4: 2
-#   5: 255 # ignore class

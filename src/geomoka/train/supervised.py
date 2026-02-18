@@ -44,9 +44,6 @@ def run_supervised(trainer) -> None:
         trainer.logger.info(f'Resumed from checkpoint at epoch {start_epoch}\n')
 
     # Training loop
-    effective_cfg = {
-        **trainer.train_cfg,
-    }
     for epoch in range(start_epoch, epochs + 1):
         train_fn(
             model=trainer.model.model,
@@ -54,7 +51,7 @@ def run_supervised(trainer) -> None:
             optimizer=trainer.optimizer,
             criterion=trainer.criterion,
             epoch=epoch,
-            cfg=effective_cfg,
+            cfg=trainer.train_cfg,
             class_dict=trainer.class_dict,
             writer=trainer.writer,
             logger=trainer.logger,
@@ -67,9 +64,9 @@ def run_supervised(trainer) -> None:
         eval_results = inference_evaluate(
             model=trainer.model.model,
             dataloader=trainer.valloader,
-            ignore_index=trainer.train_cfg.get('ignore_index', 255),
+            ignore_index=trainer.train_cfg['ignore_index'],
             mode=trainer.train_cfg.get('eval_mode', 'resize'),
-            patch_size=trainer.model.model_cfg.get('crop_size'),
+            patch_size=trainer.model.model_cfg['crop_size'],
             class_dict=trainer.class_dict,
             device=str(trainer.device),
             verbose=True,
@@ -175,7 +172,7 @@ def train_fn(model, loader, optimizer, criterion, epoch, cfg, class_dict, writer
             all_preds,
             all_targets,
             class_dict=class_dict,
-            ignore_index=cfg.get('ignore_index', 255)
+            ignore_index=cfg['ignore_index']
         )
         
         # Log aggregate metrics to tensorboard

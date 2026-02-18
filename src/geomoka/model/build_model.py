@@ -11,12 +11,19 @@ except ImportError:
     SMP_AVAILABLE = False
     print("Warning: segmentation_models_pytorch not installed. Only DPT models available.")
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
-PRETRAINED_DIR = PROJECT_ROOT / 'pretrained'
+# Use cache directory for pretrained weights
+# Works for both dev and pip-installed versions
+PRETRAINED_DIR = Path.home() / '.cache' / 'geomoka' / 'pretrained'
 
 # Map model names to smp classes
-model_map = {
-    'dpt': DPT,
+dpt_map = {
+    'dpt_dinov2_small': {'encoder_size': 'small', 'features': 64, 'out_channels': [48, 96, 192, 384]},
+    'dpt_dinov2_base': {'encoder_size': 'base', 'features': 128, 'out_channels': [96, 192, 384, 768]},
+    'dpt_dinov2_large': {'encoder_size': 'large', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
+    'dpt_dinov2_giant': {'encoder_size': 'giant', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]},
+}
+
+smp_map = {
     'unet': smp.Unet,
     'unet++': smp.UnetPlusPlus,
     'unetplusplus': smp.UnetPlusPlus,
@@ -30,55 +37,59 @@ model_map = {
     'manet': smp.MAnet,
 }
 
-def build_dpt_model(in_chans, nclass, backbone, lock_backbone=True, pretrain_dir=PRETRAINED_DIR):
-    """
-    Build DPT segmentation model with DINOv2 backbone.
-    
-    Args:
-        backbone: Backbone configuration ('dinov2_small', 'dinov2_base', 'dinov2_large', 'dinov2_giant')
-        in_chans: Number of input channels
-        nclass: Number of classes
-        pretrain_dir: Directory for pretrained weights
-        lock_backbone: Freeze backbone weights
-    
-    Returns:
-        PyTorch model
-    """
-    model_configs = {
-        'small': {'encoder_size': 'small', 'features': 64, 'out_channels': [48, 96, 192, 384]},
-        'base': {'encoder_size': 'base', 'features': 128, 'out_channels': [96, 192, 384, 768]},
-        'large': {'encoder_size': 'large', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
-        'giant': {'encoder_size': 'giant', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
+def download_pretrained_dinov2(model, pretrain_dir=PRETRAINED_DIR):
+    urls ={
+        'dinov2_small': 'https://dl.fbaipublicfiles.com/dinov2/dinov2_vits14/dinov2_vits14_pretrain.pth',
+        'dinov2_base': 'https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_pretrain.pth',
+        'dinov2_large': 'https://dl.fbaipublicfiles.com/dinov2/dinov2_vitl14/dinov2_vitl14_pretrain.pth',
+        'dinov2_giant': 'https://dl.fbaipublicfiles.com/dinov2/dinov2_vitg14/dinov2_vitg14_pretrain.pth'
     }
+
+    extract_dir = pretrain_dir
+    os.makedirs(extract_dir, exist_ok=True)
+
+    if model not in urls:
+        raise ValueError(f"{model} not recognized. Valid options are: {list(urls.keys())}")
+
+    url = urls[model]
+    pth_path = os.path.join(extract_dir, f"{model}.pth")
+
+    if not os.path.exists(pth_path):
+        print(f"Downloading pretrained DINOv2 {model} weights...")
+        torch.hub.download_url_to_file(url, pth_path)
+        print("Download complete.")
+    else:
+        print(f"Pretrained DINOv2 {model} weights already exists at {pth_path}. Skipping download.")
+
+def build_dpt_model(model, in_chans, nclass, pretrain, lock_backbone=True, pretrain_dir=PRETRAINED_DIR):
+    model_cfg = dpt_map[model]
+    model = DPT(**{**model_cfg, 'nclass': nclass, 'in_chans': in_chans})
     
-    config = backbone.split('_')[-1] if '_' in backbone else 'base'
-    assert config in model_configs, f'Unknown DINOv2 config {config}'
-    
-    model = DPT(**{**model_configs[config], 'nclass': nclass, 'in_chans': in_chans})
-    
-    # Load pretrained DINOv2 weights
-    path = os.path.join(pretrain_dir, f'{backbone}.pth')
-    if os.path.exists(path):
+    if pretrain:
+        backbone = model_cfg['encoder_size']
+        backbone_name = f'dinov2_{backbone}'
+        path = os.path.join(pretrain_dir, f'{backbone_name}.pth')
+        download_pretrained_dinov2(backbone_name, pretrain_dir)
         state_dict = torch.load(path, map_location='cpu')
         model.backbone.load_state_dict(state_dict)
         print(f'Pretrained DINOv2 weights loaded from {path}')
+
     else:
-        print(f'No pretrained weights found at {path}, training from scratch')
+        print(f'No pretrained weights, training from scratch')
     
     if lock_backbone:
         model.lock_backbone()
-        print('Backbone frozen')
-    
-    print(f'Built DPT model with {in_chans} input channels and {nclass} classes and {backbone} backbone with lock_backbone={lock_backbone}')
+        print('Encoder frozen')
     
     return model
+
 
 def build_smp_model(model, in_chans, nclass, encoder_name, encoder_weights, lock_backbone=True, **kwargs):
     if not SMP_AVAILABLE:
         raise ImportError("segmentation_models_pytorch is required for non-DPT models. Install with: pip install segmentation-models-pytorch")
     
     # Build model
-    model = model_map[model](
+    model = smp_map[model](
         in_channels=in_chans,
         classes=nclass,
         encoder_name=encoder_name,
@@ -90,54 +101,30 @@ def build_smp_model(model, in_chans, nclass, encoder_name, encoder_weights, lock
         for param in model.encoder.parameters():
             param.requires_grad = False
         print('Encoder frozen')
-    
-    print(f'Built {model} model with {in_chans} input channels and {nclass} classes with lock_backbone={lock_backbone}')
-    
 
-def build_segmentation_model(model,  
-                             in_channels, 
-                             nclass,  
-                             lock_backbone=True,
-                             model_kwargs={}
-                             ):
-    """
-    Build segmentation model from either smp library or custom DPT.
-    
-    Args:
-        model: Model architecture ('unet', 'unet++', 'deeplabv3', 'deeplabv3+', 'fpn', 'pspnet', 'pan', 'linknet', 'manet', 'dpt')
-        backbone: Encoder backbone (e.g., 'resnet50', 'efficientnet-b4', 'dinov2_base', etc.)
-        nclass: Number of classes
-        pretrained: Use ImageNet pretrained weights (for smp models)
-        lock_backbone: Freeze encoder weights
-        pretrain_dir: Directory for custom pretrained weights (for DPT)
-        in_channels: Number of input channels (passed to SMP encoders and DPT backbone)
-    
-    Returns:
-        PyTorch model
-    """
-    model = model.lower()
 
-    if model not in model_map:
-        raise ValueError(f"Unknown model: {model}. Available: {list(model_map.keys())}")
-    
-    if model == 'dpt':
-        backbone = model_kwargs.get('backbone', None)
-        if backbone is None:
-            backbone = 'dinov2_base'
-            print("No backbone specified for DPT model. Defaulting to 'dinov2_base'.")
-        model = build_dpt_model(in_channels, nclass, backbone, lock_backbone)
+def build_segmentation_model(model, in_channels, nclass, lock_backbone=True, kwargs={}):
+    model_name = model.lower()
 
-    else:
-        kwargs = model_kwargs.copy()
+    if model_name in dpt_map:
+        pretrain = kwargs.get('pretrain', True)
+        model = build_dpt_model(model_name, in_channels, nclass, pretrain, lock_backbone)
+
+    elif model_name in smp_map:
+        kwargs = kwargs.copy()
         encoder_name = kwargs.pop('encoder_name', None)
         encoder_weights = kwargs.pop('encoder_weights', None)
 
         if encoder_name is None:
             raise ValueError("encoder_name must be specified in model_kwargs for SMP models.")
         if encoder_weights is None:
-            print("encoder_weights not specified in model_kwargs for SMP models. Defaulting to 'imagenet'.")
-            encoder_weights = 'imagenet'  # default to imagenet if not specified
+            print("encoder_weights not specified in model_kwargs for SMP models. training from scratch.")
 
-        model = build_smp_model(model, in_channels, nclass, encoder_name, encoder_weights, lock_backbone, **kwargs)    
+        model = build_smp_model(model_name, in_channels, nclass, encoder_name, encoder_weights, lock_backbone, **kwargs)    
 
+    else:
+        raise ValueError(f"Model {model_name} is not recognized as either DPT or SMP model.")
+
+    print(f'Built {model_name} model with {in_channels} input channels and {nclass} classes with lock_backbone={lock_backbone}')
+    
     return model

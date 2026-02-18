@@ -14,6 +14,16 @@ Classifier: Programming Language :: Python :: 3
 Classifier: Topic :: Scientific/Engineering :: Image Recognition
 Requires-Python: >=3.9
 Description-Content-Type: text/markdown
+Requires-Dist: torch>=2.0.0
+Requires-Dist: torchvision>=0.15.0
+Requires-Dist: tqdm
+Requires-Dist: PyYAML
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: scikit-learn
+Requires-Dist: matplotlib
+Requires-Dist: tensorboard
+Requires-Dist: segmentation-models-pytorch>=0.3.0
 
 # Segmentation Framework Update
 

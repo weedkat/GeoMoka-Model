@@ -1,74 +1,25 @@
 from pathlib import Path
 from torch.utils.data import Dataset
 import numpy as np
-import os
-import glob
 import rasterio
 import warnings
 import pandas as pd
 from geomoka.dataloader.mask_converter import MaskConverter
-import yaml
 from rasterio.errors import NotGeoreferencedWarning
 from PIL import Image
 
 warnings.filterwarnings('ignore', category=NotGeoreferencedWarning)
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
-
-# The mask output for standardized dataset is in range [0, num_classes-1], compatible with torch criterion module
-class ISPRSPostdam(Dataset):
-    def __init__(self, data_csv, root_dir, metadata):
-        """
-        Args:
-            data_csv (str): Path to the CSV file containing image and mask paths.
-            root_dir (str): Root directory of the dataset.
-            metadata (str): Path to the YAML file defining dataset metadata.
-        """
-        # Resolve data_csv relative to PROJECT_ROOT if it's a relative path
-        data_csv = Path(data_csv)
-        if not data_csv.is_absolute():
-            data_csv = PROJECT_ROOT / data_csv
-        if not Path(metadata).is_absolute():
-            metadata = PROJECT_ROOT / metadata
-        if not Path(root_dir).is_absolute():
-            root_dir = PROJECT_ROOT / root_dir
-    
-        self.df = pd.read_csv(data_csv)
-        self.img_dir = Path(f"{root_dir}/patches/Images")
-        self.mask_dir = Path(f"{root_dir}/patches/Labels")
-
-        self.mc = MaskConverter(metadata)
-
-    def __getitem__(self, idx): 
-        assert isinstance(idx, int)
-
-        row = self.df.iloc[idx]
-        img_path = Path(f"{self.img_dir}/{row['Source']}")
-        mask_path = Path(f"{self.mask_dir}/{row['Target']}")
-        image = self._load_image(img_path)
-        mask = self._load_mask(mask_path)
-
-        return image, mask
-
-    def _load_image(self, path):
-        with rasterio.open(path) as src:
-            img = src.read() # in (C, H, W) format
-        img = np.transpose(img, (1, 2, 0)) # to (H, W, C) format
-        return img
-
-    def _load_mask(self, path):
-        with rasterio.open(path) as src:
-            m = src.read()
-        m = np.transpose(m, (1, 2, 0))
-        return self.mc.rgb_to_class(m)
-    
-    def __len__(self):
-        return len(self.df)
 
 class GenericDataset(Dataset):
     """
     Generic dataset handler for various image formats (TIF, JPG, PNG, etc.)
     Supports masks in both RGB format and index format.
+
+    Args:
+        data_csv: Path to CSV file (relative to cwd or absolute)
+        root_dir: Root directory of dataset (relative to cwd or absolute)
+        metadata: Path to YAML metadata (relative to cwd or absolute)
     """
     def __init__(self, data_csv, root_dir, metadata):
         """
@@ -77,18 +28,14 @@ class GenericDataset(Dataset):
             root_dir (str): Root directory of the dataset.
             metadata (str): Path to the YAML file defining dataset metadata.
         """
-        # Resolve paths relative to PROJECT_ROOT if needed
-        data_csv = Path(data_csv)
-        if not data_csv.is_absolute():
-            data_csv = PROJECT_ROOT / data_csv
-        if not Path(metadata).is_absolute():
-            metadata = PROJECT_ROOT / metadata
-        if not Path(root_dir).is_absolute():
-            root_dir = PROJECT_ROOT / root_dir
+        # Resolve relative paths from current working directory
+        data_csv = Path(data_csv).resolve()
+        root_dir = Path(root_dir).resolve()
+        metadata = Path(metadata).resolve()
     
         self.df = pd.read_csv(data_csv)
-        self.img_dir = Path(f"{root_dir}/Source")
-        self.mask_dir = Path(f"{root_dir}/Target")
+        self.img_dir = root_dir / "images"
+        self.mask_dir = root_dir / "labels"
         self.mc = MaskConverter(metadata)
 
     def __getitem__(self, idx):
@@ -96,9 +43,9 @@ class GenericDataset(Dataset):
 
         row = self.df.iloc[idx]
         
-        img_path = self.img_dir / row['Source']
+        img_path = self.img_dir / row['Image']
         image = self._load_image(img_path)
-        mask_path = self.mask_dir / row['Target']
+        mask_path = self.mask_dir / row['Label']
         mask = self._load_mask(mask_path)
 
         return image, mask

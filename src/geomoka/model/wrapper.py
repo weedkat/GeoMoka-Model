@@ -1,9 +1,3 @@
-"""
-Model and Trainer wrappers for clean separation of concerns.
-- SegmentationModel: Handles loading, inference, and metadata management
-- SegmentationTrainer: Handles training logic (separate from model)
-"""
-
 import torch
 from pathlib import Path
 from typing import Dict, Any, Optional, Union, Tuple
@@ -19,12 +13,6 @@ class SegmentationModel:
     
     Single responsibility: Model loading and inference only.
     Training is handled by SegmentationTrainer.
-    
-    Attributes:
-        model: PyTorch segmentation model
-        transform: Albumentations transform pipeline
-        metadata: Dict containing model configuration and info
-        device: torch device
     """
     def __init__(
         self,
@@ -44,18 +32,17 @@ class SegmentationModel:
         """
         super().__init__()
         self.model_cfg = model_cfg
-        self.model = build_segmentation_model(model=model_cfg['model'],
-                                              in_channels=model_cfg['in_channels'],
-                                              nclass=len(metadata['class_dict']),
-                                              lock_backbone=model_cfg.get('lock_backbone', False),
-                                              model_kwargs=model_cfg.get('model_kwargs', {}))
         self.transform_cfg = transform_cfg
         self.metadata = metadata
         
         # Class interpreter
         self.mc = MaskConverter(metadata)
-        ignore_idx = metadata.get('ignore_index', 255)
-        self.nclass = len(self.mc.get_class_dict(exclude_ignore=True, ignore_index=ignore_idx))
+
+        self.model = build_segmentation_model(model=model_cfg['model'],
+                                            in_channels=model_cfg['in_channels'],
+                                            nclass=len(metadata['class_dict']) - 1, # Exclude ignore_index from class count
+                                            lock_backbone=model_cfg.get('lock_backbone', False),
+                                            kwargs=model_cfg.get('kwargs', {}))
 
         # Device
         self.device = self._setup_device(device)
@@ -68,14 +55,29 @@ class SegmentationModel:
             overlap_ratio=0.5,
             device=self.device,
             transform_cfg=transform_cfg.get('inference', []),
-            reject_class=metadata.get('ignore_index', 255),
+            reject_class=model_cfg['ignore_index'],
+            confidence_threshold=model_cfg.get('confidence_threshold', float('-inf')),
         )
     
     def __call__(self, x):
         return self.model(x)
 
-    def predict(self, images, **kwargs) -> torch.Tensor:
-        return self.inferencer(images, **kwargs)
+    def predict(self, images, mode: str = 'sliding_window', verbose: bool = False) -> torch.Tensor:
+        pred, _, _ = self.inferencer(images, mode=mode, verbose=verbose)
+        return torch.from_numpy(pred)
+    
+    @property
+    def confidence_threshold(self) -> float:
+        """Get current confidence threshold."""
+        return self.inferencer.confidence_threshold
+    
+    @confidence_threshold.setter
+    def confidence_threshold(self, value: float):
+        """Set confidence threshold for inference."""
+        assert 0.0 <= value <= 1.0 or value == float('-inf'), "Threshold must be in [0, 1] or -inf"
+        self.inferencer.confidence_threshold = value
+        self.model_cfg['confidence_threshold'] = value  # Persist to config for saving
+        print(f'[Model] Confidence threshold set to {value}')
     
     @classmethod
     def load(cls, pth_path: Union[str, Path]) -> 'SegmentationModel':

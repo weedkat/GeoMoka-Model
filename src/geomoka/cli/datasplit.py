@@ -1,58 +1,94 @@
 import os
 import pandas as pd
-from glob import glob
 from sklearn.model_selection import train_test_split
 from pathlib import Path
-import argparse
+import argparse 
+import re
 
 SEED = 10
+IMAGE_EXTENSIONS = ['*.tif', '*.tiff', '*.jpg', '*.jpeg', '*.png', '*.bmp', '*.jp2']
 
-def seg_split(img_dir, mask_dir, out_dir, labeled_ratio=(), test_val_split=0.3, img_ext='', mask_ext=''):
-    X = sorted(list(Path(img_dir).glob(f'*{img_ext}')))
-    y = sorted(list(Path(mask_dir).glob(f'*{mask_ext}')))
+def extract_id(filename):
+    stem = Path(filename).stem
+    match = re.findall(r'\d+', stem)
+    
+    if match:
+        return match[-1]  # Return last numeric sequence
+    
+    return stem  # Fallback to full stem if no numbers found
 
-    X = [p.name for p in X]
-    y = [p.name for p in y]
+def seg_split(img_dir, mask_dir, out_dir, train_val_test):
+    # Collect all images
+    images, labels = [], []
+    for ext in IMAGE_EXTENSIONS:
+        images.extend(Path(img_dir).glob(ext))
+    # Collect all masks
+    for ext in IMAGE_EXTENSIONS:
+        labels.extend(Path(mask_dir).glob(ext))
 
-    assert len(X) == len(y)
+    images = sorted(images)
+    labels = sorted(labels)
+    
+    label_dict = {extract_id(label.name): label for label in labels}
+    
+    # Match images to masks by ID
+    labeled_pairs = []
+    unlabeled_imgs = []
+    
+    for img in images:
+        img_id = extract_id(img.name)
+        if img_id in label_dict:
+            labeled_pairs.append((img, label_dict[img_id]))
+        else:
+            unlabeled_imgs.append(img)
+    
+    if not labeled_pairs:
+        raise ValueError(f"No matching image-mask pairs found. Check that filenames match (ignoring extensions)")
+    
+    print(f"Found {len(labeled_pairs)} labeled images, {len(unlabeled_imgs)} unlabeled images")
+    
+    X_labeled = [pair[0] for pair in labeled_pairs]
+    y_labeled = [pair[1] for pair in labeled_pairs]
+    
+    train_split = train_val_test[0]
+    val_split = train_val_test[1] / (train_val_test[1] + train_val_test[2])
 
-    X_train, X_rem, y_train, y_rem = train_test_split(X, y, test_size=test_val_split)
-    X_val, X_test, y_val, y_test = train_test_split(X_rem, y_rem, test_size=0.5)
+    X_train, X_rem, y_train, y_rem = train_test_split(X_labeled, y_labeled, train_size=train_split, random_state=SEED)
+    X_val, X_test, y_val, y_test = train_test_split(X_rem, y_rem, train_size=val_split, random_state=SEED)
 
-    train_df = pd.DataFrame({'Source': X_train, 'Target': y_train})
-    val_df = pd.DataFrame({'Source': X_val, 'Target': y_val})
-    test_df = pd.DataFrame({'Source': X_test, 'Target': y_test})
+    train_df = pd.DataFrame({'Image': X_train, 'Label': y_train})
+    val_df = pd.DataFrame({'Image': X_val, 'Label': y_val})
+    test_df = pd.DataFrame({'Image': X_test, 'Label': y_test})
 
     os.makedirs(out_dir, exist_ok=True)
 
     train_df.to_csv(os.path.join(out_dir, 'train.csv'), index=False)
     val_df.to_csv(os.path.join(out_dir, 'val.csv'), index=False)
     test_df.to_csv(os.path.join(out_dir, 'test.csv'), index=False)
-
-    for ratio in labeled_ratio:
-        X_labeled, X_unlabeled, y_labeled, y_unlabeled = train_test_split(X_train, y_train, train_size=ratio, random_state=SEED)
-        out_ratio_dir = os.path.join(out_dir, f'{int(ratio*100)}%')
-        os.makedirs(out_ratio_dir, exist_ok=True)
-
-        labeled_df = pd.DataFrame({'Source': X_labeled, 'Target': y_labeled})
-        unlabeled_df = pd.DataFrame({'Source': X_unlabeled, 'Target': y_unlabeled})
-        
-        labeled_df.to_csv(os.path.join(out_ratio_dir, 'labeled.csv'), index=False)
-        unlabeled_df.to_csv(os.path.join(out_ratio_dir, 'unlabeled.csv'), index=False)
+    
+    if unlabeled_imgs:
+        unlabeled_df = pd.DataFrame({'Image': unlabeled_imgs, 'Label': [None]*len(unlabeled_imgs)})
+        unlabeled_df.to_csv(os.path.join(out_dir, 'unlabeled.csv'), index=False)
     
     print(f'Split saved to {out_dir}')
 
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description='Segmented Dataset Splitter')
-    parser.add_argument('--img_dir', type=str, required=True, help='Directory containing images')
-    parser.add_argument('--mask_dir', type=str, required=True, help='Directory containing masks')
-    parser.add_argument('--out_dir', type=str, required=True, help='Output directory for splits')
-    parser.add_argument('--test_val_split', type=float, default=0.3, help='Test/validation split ratio')
-    parser.add_argument('--labeled_ratio', type=float, nargs='*', default=[0.4, 0.2, 0.1, 0.05], help='Ratios for labeled data splits')
-    parser.add_argument('--img_ext', type=str, default='.tif', help='Image file extension')
-    parser.add_argument('--mask_ext', type=str, default='.tif', help='Mask file extension')
+    parser.add_argument('--root', type=str, required=True, help='Directory containing images')
+    parser.add_argument('--out_dir', default=None, help='Output directory for splits')
+    parser.add_argument('--train_val_test', type=float, nargs=3, default=[0.7, 0.15, 0.15], help='Train/validation/test split ratios')
 
     args = parser.parse_args()
 
-    seg_split(args.img_dir, args.mask_dir, args.out_dir, args.labeled_ratio, img_ext=args.img_ext, mask_ext=args.mask_ext)
+    if args.out_dir is None:
+        args.out_dir = os.path.join(args.root, 'splits')
+
+    img_dir = os.path.join(args.root, 'images')
+    mask_dir = os.path.join(args.root, 'labels')
+
+    seg_split(img_dir, mask_dir, args.out_dir, args.train_val_test)
+
+
+if __name__ == '__main__':
+    main()

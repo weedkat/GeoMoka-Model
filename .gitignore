@@ -3,6 +3,7 @@ venv/
 .venv/
 env/
 .vscode/
+.*/
 
 # Ignore large folder
 dataset/
@@ -14,7 +15,7 @@ tests/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
-*.py[cod]
+*.py[cod]z
 
 # packaging / build artifacts
 *.egg-info/

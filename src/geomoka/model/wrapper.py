@@ -53,7 +53,7 @@ class SegmentationModel:
             model=self.model,
             patch_size=model_cfg['crop_size'],
             overlap_ratio=0.5,
-            device=self.device,
+            device=self.device.type,
             transform_cfg=transform_cfg.get('inference', []),
             reject_class=model_cfg['ignore_index'],
             confidence_threshold=model_cfg.get('confidence_threshold', 0.0),

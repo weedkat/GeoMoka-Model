@@ -48,5 +48,7 @@ class MaskConverter:
 
         return mask_rgb
     
-    def get_class_dict(self):
+    def get_class_dict(self, ignore_index=None):
+        if ignore_index is not None:
+            return {key: value for key, value in self.class_dict.items() if key != ignore_index}
         return self.class_dict

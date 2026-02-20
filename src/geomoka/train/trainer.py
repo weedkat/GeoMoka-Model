@@ -58,7 +58,7 @@ class SegmentationTrainer:
         self.writer = writer
         self.logger = logger
         self.device = model.device
-        self.class_dict = model.mc.get_class_dict(exclude_ignore=True)
+        self.class_dict = model.mc.get_class_dict(ignore_index=train_cfg.get('ignore_index'))
 
     @classmethod
     def from_config(cls, config_path: Union[str, Path], save_dir: str = 'outputs'):
@@ -131,6 +131,7 @@ class SegmentationTrainer:
         )
 
         # ==================== Criterion ====================
+        train_cfg['ignore_index'] = cfg['ignore_index']  # Pass ignore_index to train_cfg for later use
         train_kwargs = train_cfg['criterion'].get('kwargs') or {}
         train_kwargs['ignore_index'] = cfg['ignore_index']
         if train_cfg['criterion']['name'] == 'CELoss':

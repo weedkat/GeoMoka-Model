@@ -37,10 +37,12 @@ def seg_split(img_dir, mask_dir, out_dir, train_val_test):
     
     for img in images:
         img_id = extract_id(img.name)
+        image_name = img.name
         if img_id in label_dict:
-            labeled_pairs.append((img, label_dict[img_id]))
+            label_name = label_dict[img_id].name
+            labeled_pairs.append((image_name, label_name))
         else:
-            unlabeled_imgs.append(img)
+            unlabeled_imgs.append(image_name)
     
     if not labeled_pairs:
         raise ValueError(f"No matching image-mask pairs found. Check that filenames match (ignoring extensions)")

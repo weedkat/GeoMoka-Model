@@ -131,7 +131,7 @@ class SegmentationTrainer:
         )
 
         # ==================== Criterion ====================
-        train_kwargs = train_cfg['criterion'].get('kwargs', {})
+        train_kwargs = train_cfg['criterion'].get('kwargs') or {}
         train_kwargs['ignore_index'] = cfg['ignore_index']
         if train_cfg['criterion']['name'] == 'CELoss':
             criterion = nn.CrossEntropyLoss(**train_kwargs).to(model.device)

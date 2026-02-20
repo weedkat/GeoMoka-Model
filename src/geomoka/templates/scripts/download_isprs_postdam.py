@@ -37,8 +37,8 @@ def main():
         return
     
     url = "https://www.kaggle.com/api/v1/datasets/download/deasadiqbal/private-data-1"
-    zip_path = "./dataset/ISPRS-Postdam/ISPRS-Postdam.zip"
-    extract_dir = "./dataset/ISPRS-Postdam/"
+    zip_path = "./dataset/isprs_postdam/ISPRS-Postdam.zip"
+    extract_dir = "./dataset/isprs_postdam/"
 
     os.makedirs(extract_dir, exist_ok=True)
 

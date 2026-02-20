@@ -56,7 +56,7 @@ class SegmentationModel:
             device=self.device,
             transform_cfg=transform_cfg.get('inference', []),
             reject_class=model_cfg['ignore_index'],
-            confidence_threshold=model_cfg.get('confidence_threshold', float('-inf')),
+            confidence_threshold=model_cfg.get('confidence_threshold', 0.0),
         )
     
     def __call__(self, x):

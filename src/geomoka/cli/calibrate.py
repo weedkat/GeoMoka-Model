@@ -53,7 +53,7 @@ def calibrate_confidence_threshold(
     
     # Store original threshold and disable rejection during inference
     original_threshold = inference.confidence_threshold
-    inference.confidence_threshold = float('-inf')  # No rejection during initial inference
+    inference.confidence_threshold = 0.0  # No rejection during initial inference
     
     # Run inference ONCE and cache results
     all_raw_preds = []

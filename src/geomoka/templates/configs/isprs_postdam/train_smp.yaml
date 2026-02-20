@@ -1,10 +1,10 @@
 # Arguments for dataset
 dataset: GenericDataset
-root_dir: dataset/ISPRS-Postdam
-train_split: dataset/ISPRS-Postdam/splits/train.csv
-val_split: dataset/ISPRS-Postdam/splits/val.csv
-test_split: dataset/ISPRS-Postdam/splits/test.csv
-metadata: config/ISPRS-Postdam/metadata.yaml
+root_dir: dataset/isprs_postdam
+train_split: dataset/isprs_postdam/splits/train.csv
+val_split: dataset/isprs_postdam/splits/val.csv
+test_split: dataset/isprs_postdam/splits/test.csv
+metadata: config/isprs_postdam/metadata.yaml
 in_channels: 3
 define: &crop_size 252
 crop_size: *crop_size

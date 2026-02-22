@@ -123,7 +123,7 @@ class SegmentationInference:
             'mode': mode,
             'device': self.device,
             'processing_time': elapsed,
-            'num_classes': self.num_classes ,
+            'num_classes': self.num_classes,
         }
         
         if verbose:
@@ -227,15 +227,11 @@ class SegmentationInference:
             raise TypeError(f"Unsupported input type: {type(image)}")
 
         # Handle batched input (B, H, W, C) or (B, H, W)
-        if img_np.ndim == 4:
-            # Already batched (B, H, W, C)
-            pass
-        # Ensure (H, W, C) format for single images
-        elif img_np.ndim == 2:
+        # Ensure (1, H, W, C) format for single images
+        if img_np.ndim == 2:
             img_np = np.expand_dims(img_np, axis=-1)  # (H, W, 1)
-            img_np = np.expand_dims(img_np, axis=0)  # (1, H, W, 1)
         # Add batch dimension if single image (H, W, C)
-        elif img_np.ndim == 3:
+        if img_np.ndim == 3:
             img_np = np.expand_dims(img_np, axis=0)  # (1, H, W, C)
         
         # Now img_np is (B, H, W, C)

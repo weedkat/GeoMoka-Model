@@ -29,7 +29,8 @@ dependencies = [
     "scikit-learn",
     "matplotlib",
     "tensorboard",
-    "segmentation-models-pytorch>=0.3.0"
+    "segmentation-models-pytorch>=0.3.0",
+    "rasterio"
 ]
 
 [project.urls]

@@ -12,7 +12,7 @@ def main():
     dest_dir = root / 'config' / args.config
     dest_dir.mkdir(parents=True, exist_ok=True)
 
-    src = files("geomoka").joinpath('templates').joinpath('configs').joinpath(args.config)
+    src = files("geomoka").joinpath('template').joinpath('config').joinpath(args.config)
     for file in src.iterdir():
         if file.is_file():
             dest = dest_dir / file.name

@@ -7,11 +7,11 @@ def scaffold(root: Path) -> None:
 	"""Create the minimal folder structure only."""
 	(root / "config").mkdir(parents=True, exist_ok=True)
 	(root / "dataset").mkdir(parents=True, exist_ok=True)
-	(root / "scripts").mkdir(parents=True, exist_ok=True)
-	(root / "tests").mkdir(parents=True, exist_ok=True)
+	(root / "script").mkdir(parents=True, exist_ok=True)
+	(root / "test").mkdir(parents=True, exist_ok=True)
 
-	for dir in ["scripts", "tests"]:
-		src = files("geomoka").joinpath("templates").joinpath(dir)
+	for dir in ["script", "test"]:
+		src = files("geomoka").joinpath("template").joinpath(dir)
 		for file in src.iterdir():
 			if file.is_file():
 				dest = root / dir / file.name

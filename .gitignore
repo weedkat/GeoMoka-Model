@@ -5,14 +5,14 @@ env/
 .vscode/
 .VSCodeCounter/
 
-# Ignore large folder
-dataset/
-pretrained/
-checkpoints/
-config/
-scripts/
-tests/
-outputs/
+# Ignore project folder
+/dataset/
+/pretrained/
+/checkpoints/
+/config/
+/script/
+/test/
+/output/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

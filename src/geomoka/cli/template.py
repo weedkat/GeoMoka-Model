@@ -6,6 +6,7 @@ def main():
     parser = argparse.ArgumentParser(description="Scaffold minimal project folders")
     parser.add_argument("--root", type=str, default=None, help="Project root directory (default: current directory)")
     parser.add_argument("--config", type=str, default='generic', help="Templete config name options: generic (default), isprs_postdam")
+    parser.add_argument("--force", action='store_true', help="Overwrite existing config files")
     args = parser.parse_args()
 
     root = Path(args.root) if args.root else Path.cwd()
@@ -16,8 +17,11 @@ def main():
     for file in src.iterdir():
         if file.is_file():
             dest = dest_dir / file.name
-            if not dest.exists():
-                dest.write_bytes(file.read_bytes())
+            if dest.exists() and not args.force:
+                print(f"[skip] {dest} already exists (use --force to overwrite)")
+                continue
+            dest.write_bytes(file.read_bytes())
+            print(f"[write] {dest}")
 
 if __name__ == "__main__":
     main()

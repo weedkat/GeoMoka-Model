@@ -38,13 +38,8 @@ class SegmentationModel:
         # Class interpreter
         self.mc = MaskConverter(metadata)
 
-        self.model = build_segmentation_model(model=model_cfg['model'],
-                                            in_channels=model_cfg['in_channels'],
-                                            nclass=len(metadata['class_dict']) - 1, # Exclude ignore_index from class count
-                                            lock_backbone=model_cfg.get('lock_backbone', False),
-                                            kwargs=model_cfg.get('kwargs', {}))
-
-        # Device
+        # Model and device
+        self.model = build_segmentation_model(**model_cfg)
         self.device = self._setup_device(device)
         self.model.to(self.device)
 
@@ -54,17 +49,17 @@ class SegmentationModel:
             patch_size=model_cfg['crop_size'],
             overlap_ratio=0.5,
             device=self.device.type,
-            transform_cfg=transform_cfg.get('inference', []),
-            reject_class=model_cfg['ignore_index'],
+            transform_cfg=transform_cfg['inference'],
+            reject_class=metadata['ignore_index'],
             confidence_threshold=model_cfg.get('confidence_threshold', 0.0),
         )
     
     def __call__(self, x):
         return self.model(x)
 
-    def predict(self, images, mode: str = 'sliding_window', verbose: bool = False) -> torch.Tensor:
+    def predict(self, images, mode='sliding_window', verbose=False) -> torch.Tensor:
         pred, _, _ = self.inferencer(images, mode=mode, verbose=verbose)
-        return torch.from_numpy(pred)
+        return pred
     
     @property
     def confidence_threshold(self) -> float:
@@ -80,7 +75,7 @@ class SegmentationModel:
         print(f'[Model] Confidence threshold set to {value}')
     
     @classmethod
-    def load(cls, pth_path: Union[str, Path]) -> 'SegmentationModel':
+    def load(cls, pth_path: Union[str, Path]) -> SegmentationModel:
         """
         Load model from checkpoint.
         
@@ -103,7 +98,7 @@ class SegmentationModel:
         
         return model_wrapper
     
-    def load_state_dict(self, state_dict, strict: bool = True):
+    def load_state_dict(self, state_dict, strict=True):
         return self.model.load_state_dict(state_dict, strict=strict)
     
     def save(self, save_path) -> None:

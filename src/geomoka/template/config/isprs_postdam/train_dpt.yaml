@@ -5,10 +5,7 @@ train_split: dataset/isprs_postdam/splits/train.csv
 val_split: dataset/isprs_postdam/splits/val.csv
 test_split: dataset/isprs_postdam/splits/test.csv
 metadata: config/isprs_postdam/metadata.yaml
-in_channels: 3
 define: &crop_size 252
-crop_size: *crop_size
-ignore_index: 255
 
 # Arguments for data loader, tweak if training is slow or low gpu utilization
 dataloader_cfg:
@@ -38,14 +35,15 @@ train_cfg:
 # arguments for model
 model_cfg:
   model: dpt_dinov2_base  # Options: unet, unet++, deeplabv3, deeplabv3+, fpn, pspnet, pan, linknet, manet, dpt
-  model_name: dpt_dinov2_base_isprs_postdam
-  lock_backbone: false  # Wether to freeze encoder during training
-  kwargs: # Model-specific kwargs, passed to model constructor
-    pretrain: true
-    # encoder_name: resnet50
-    # encoder_weights: imagenet
-    # decoder_channels: 512
-  
+  model_name: dpt_dinov2_base_isprs_postdam # Model name for saving checkpoints and logging
+  pretrain: True # Whether to use pretrained weights for the backbone
+  lock_encoder: false  # Wether to freeze encoder during training
+  crop_size: *crop_size
+  # Model-specific kwargs, passed to model constructor
+  # encoder_name: resnet50
+  # encoder_weights: imagenet
+  # decoder_channels: 512
+
 # Arguments for transformations, Refer to Albumentations library for more details
 transform_cfg:
   train:

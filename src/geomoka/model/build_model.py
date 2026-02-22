@@ -1,7 +1,6 @@
 import os
 import torch
 from pathlib import Path
-
 from geomoka.model.semseg.dpt import DPT
 
 try:
@@ -9,7 +8,7 @@ try:
     SMP_AVAILABLE = True
 except ImportError:
     SMP_AVAILABLE = False
-    print("Warning: segmentation_models_pytorch not installed. Only DPT models available.")
+    print("Warning: segmentation_models_pytorch not installed")
 
 # Use cache directory for pretrained weights
 # Works for both dev and pip-installed versions
@@ -61,9 +60,9 @@ def download_pretrained_dinov2(model, pretrain_dir=PRETRAINED_DIR):
     else:
         print(f"Pretrained DINOv2 {model} weights already exists at {pth_path}. Skipping download.")
 
-def build_dpt_model(model, in_chans, nclass, pretrain, lock_backbone=True, pretrain_dir=PRETRAINED_DIR):
+def build_dpt_model(model, in_channels, nclass, pretrain, lock_encoder=True, pretrain_dir=PRETRAINED_DIR, **kwargs):
     model_cfg = dpt_map[model]
-    model = DPT(**{**model_cfg, 'nclass': nclass, 'in_chans': in_chans})
+    model = DPT(**{**model_cfg, 'nclass': nclass, 'in_chans': in_channels})
     
     if pretrain:
         backbone = model_cfg['encoder_size']
@@ -77,54 +76,45 @@ def build_dpt_model(model, in_chans, nclass, pretrain, lock_backbone=True, pretr
     else:
         print(f'No pretrained weights, training from scratch')
     
-    if lock_backbone:
+    if lock_encoder:
         model.lock_backbone()
         print('Encoder frozen')
     
     return model
 
 
-def build_smp_model(model, in_chans, nclass, encoder_name, encoder_weights, lock_backbone=True, **kwargs):
+def build_smp_model(model, in_channels, nclass, pretrain, lock_encoder, **kwargs):
     if not SMP_AVAILABLE:
         raise ImportError("segmentation_models_pytorch is required for non-DPT models. Install with: pip install segmentation-models-pytorch")
     
     # Build model
+    if not pretrain:
+        kwargs['encoder_weights'] = None  # Disable pretrained weights if pretrain=False
+
     model = smp_map[model](
-        in_channels=in_chans,
+        in_channels=in_channels,
         classes=nclass,
-        encoder_name=encoder_name,
-        encoder_weights=encoder_weights,
         **kwargs
     )
     
-    if lock_backbone:
+    if lock_encoder:
         for param in model.encoder.parameters():
             param.requires_grad = False
         print('Encoder frozen')
 
+    return model
 
-def build_segmentation_model(model, in_channels, nclass, lock_backbone=True, kwargs={}):
+
+def build_segmentation_model(model, in_channels, nclass, pretrain, lock_encoder, **kwargs):
     model_name = model.lower()
 
     if model_name in dpt_map:
-        pretrain = kwargs.get('pretrain', True)
-        model = build_dpt_model(model_name, in_channels, nclass, pretrain, lock_backbone)
-
+        model = build_dpt_model(model_name, in_channels, nclass, pretrain, lock_encoder, **kwargs)
     elif model_name in smp_map:
-        kwargs = kwargs.copy()
-        encoder_name = kwargs.pop('encoder_name', None)
-        encoder_weights = kwargs.pop('encoder_weights', None)
-
-        if encoder_name is None:
-            raise ValueError("encoder_name must be specified in model_kwargs for SMP models.")
-        if encoder_weights is None:
-            print("encoder_weights not specified in model_kwargs for SMP models. training from scratch.")
-
-        model = build_smp_model(model_name, in_channels, nclass, encoder_name, encoder_weights, lock_backbone, **kwargs)    
-
+        model = build_smp_model(model_name, in_channels, nclass, pretrain, lock_encoder, **kwargs)    
     else:
         raise ValueError(f"Model {model_name} is not recognized as either DPT or SMP model.")
 
-    print(f'Built {model_name} model with {in_channels} input channels and {nclass} classes with lock_backbone={lock_backbone}')
+    print(f'Built {model_name} model with {in_channels} input channels and {nclass} classes with lock_encoder={lock_encoder}')
     
     return model

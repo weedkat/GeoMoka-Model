@@ -58,7 +58,6 @@ class SegmentationTrainer:
         self.writer = writer
         self.logger = logger
         self.device = model.device
-        self.class_dict = model.mc.get_class_dict(ignore_index=train_cfg.get('ignore_index'))
 
     @classmethod
     def from_config(cls, config_path: Union[str, Path], save_dir: str = 'outputs'):
@@ -74,15 +73,12 @@ class SegmentationTrainer:
         """
         # Load configuration from YAML file
         cfg = yaml.load(open(config_path, 'r'), Loader=yaml.Loader)
+        metadata = yaml.safe_load(open(cfg['metadata'], 'r'))
+
         train_cfg = cfg['train_cfg']
-        train_cfg['ignore_index'] = cfg['ignore_index']  # Pass ignore_index to train_cfg for later use
         model_cfg = cfg['model_cfg']
         transform_cfg = cfg['transform_cfg']
         
-        # Load metadata
-        with open(cfg['metadata'], 'r') as f:
-            metadata = yaml.safe_load(f)
-
         # Generate unique model name and save path
         model_name = generate_model_name(cfg)
         save_path = Path(save_dir) / model_name
@@ -112,10 +108,11 @@ class SegmentationTrainer:
 
         # ==================== Model ====================
         print('Building model...')
+
         model_cfg = {**model_cfg,
-            'in_channels': cfg['in_channels'],
-            'crop_size': cfg['crop_size'],
-            'ignore_index': cfg['ignore_index'],}
+            'nclass': len(metadata['class_dict']) - 1, # Exclude ignore_index from class count
+            'in_channels': metadata['in_channels']}
+        
         model = SegmentationModel(model_cfg, transform_cfg, metadata)
         print('Model built successfully.')
 
@@ -131,13 +128,13 @@ class SegmentationTrainer:
         )
 
         # ==================== Criterion ====================
-        train_cfg['ignore_index'] = cfg['ignore_index']  # Pass ignore_index to train_cfg for later use
+        ignore_index = metadata['ignore_index']
         train_kwargs = train_cfg['criterion'].get('kwargs') or {}
-        train_kwargs['ignore_index'] = cfg['ignore_index']
+
         if train_cfg['criterion']['name'] == 'CELoss':
-            criterion = nn.CrossEntropyLoss(**train_kwargs).to(model.device)
+            criterion = nn.CrossEntropyLoss(ignore_index=ignore_index, **train_kwargs).to(model.device)
         elif train_cfg['criterion']['name'] == 'OHEM':
-            criterion = ProbOhemCrossEntropy2d(**train_kwargs).to(model.device)
+            criterion = ProbOhemCrossEntropy2d(ignore_index=ignore_index,**train_kwargs).to(model.device)
         else:
             raise NotImplementedError(f"{train_cfg['criterion']['name']} criterion is not implemented")
         
@@ -146,7 +143,11 @@ class SegmentationTrainer:
 
         # ==================== DataLoader ========================
         print('Building dataloaders...')
-        trainloader, valloader = cls.build_supervised_dataloader(cfg)
+        trainloader, valloader = None, None
+        if train_cfg['method'] == 'supervised':
+            trainloader, valloader = cls.build_supervised_dataloader(cfg)
+        else:
+            raise NotImplementedError(f"{train_cfg['method']} training method not yet implemented")
         print('Dataloaders built successfully.\n')
 
         return cls(
@@ -160,7 +161,7 @@ class SegmentationTrainer:
             writer=writer,
             logger=logger
         )
-    
+
     @staticmethod
     def build_supervised_dataloader(cfg):
         """
@@ -175,13 +176,12 @@ class SegmentationTrainer:
         transform_cfg = cfg['transform_cfg']
         loader_cfg = cfg['dataloader_cfg']
 
-        train_ds = get_dataset(cfg['dataset'], cfg['train_split'], root_dir=cfg.get('root_dir'), metadata=cfg['metadata'])
-        val_ds = get_dataset(cfg['dataset'], cfg['val_split'], root_dir=cfg.get('root_dir'), metadata=cfg['metadata'])
+        train_ds = get_dataset(cfg['dataset'], cfg['train_split'], root_dir=cfg['root_dir'], metadata=cfg['metadata'])
+        val_ds = get_dataset(cfg['dataset'], cfg['val_split'], root_dir=cfg['root_dir'], metadata=cfg['metadata'])
         
         # Wrapper datasets
         trainset = SupervisedDataset(train_ds, transform_cfg['train'])
-        # Validation transforms handled by SegmentationInference
-        valset = SupervisedDataset(val_ds, [])
+        valset = SupervisedDataset(val_ds, []) # Validation transforms handled by SegmentationInference
 
         trainloader = DataLoader(
             trainset, 

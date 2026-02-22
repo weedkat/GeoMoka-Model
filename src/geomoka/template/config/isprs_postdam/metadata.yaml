@@ -1,6 +1,8 @@
 # index 255 is ignored by model during training, change in train config if needed
 # class dict has to be continuous from 0 to nclass-1, with an optional ignore. please alter dataset and metadata accordingly
 # bacause mask dataset is in rgb format, it is fine to define the index, otherwise follow the dataset format
+ignore_index: 255
+in_channels: 3
 class_dict: 
   0:
     name: Impervious surfaces

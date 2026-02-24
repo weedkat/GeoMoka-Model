@@ -3,7 +3,8 @@ site_name = "GeoMoka Model"
 site_description = "Geospatial semantic segmentation framework documentation"
 site_author = "Fatah Muria"
 docs_dir = "docs"
-site_dir = "site_url"
+site_dir = "site"
+site_url = "https://yourusername.github.io/geomoka-model"
 
 copyright = "Copyright © 2026 GeoMoka contributors"
 

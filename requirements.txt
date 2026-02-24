@@ -10,3 +10,5 @@ segmentation-models-pytorch>=0.3.0
 tensorboard>=2.12.0
 tqdm>=4.64.0
 scikit-learn>=1.0.0
+mkdocs>=1.6.0
+mkdocs-material>=9.5.0

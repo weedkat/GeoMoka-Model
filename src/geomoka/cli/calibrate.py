@@ -1,8 +1,5 @@
 """
 CLI tool for calibrating confidence threshold to maximize mIoU.
-
-Usage:
-    python -m geomoka.cli.calibrate --config config/dataset/train.yaml --checkpoint path/to/model.pth
 """
 
 import argparse

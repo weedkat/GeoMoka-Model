@@ -1,6 +1,34 @@
-# Segmentation Framework Update
+# GeoMoka Model
 
-## New Features
+Geospatial semantic segmentation framework with support for multiple architectures and advanced remote sensing workflows.
+
+## Overview
+
+**GeoMoka Model** is a PyTorch-based framework for semantic segmentation of geospatial and remote sensing imagery. It provides:
+
+- **Multiple segmentation models** via Segmentation Models PyTorch (SMP)
+- **DINOv2-based DPT** architecture for vision foundation models
+- **Flexible training** with config-driven workflows
+- **Dataset tools** for splitting and preprocessing remote sensing data
+- **Calibration utilities** for confidence thresholding
+
+📖 **[Full Documentation](https://weedkat.github.io/GeoMoka-Model/)**
+
+## Quickstart
+
+```bash
+pip install -r requirements.txt
+pip install -e .
+
+# Scaffold a new project
+geomoka-scaffold --root .
+geomoka-template --root . --config generic
+
+# Train a model
+geomoka-train --config config/generic/train_dpt.yaml --save_dir output
+```
+
+## Features
 
 ### 1. Segmentation Models PyTorch (SMP) Integration
 

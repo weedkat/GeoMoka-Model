@@ -4,6 +4,7 @@ venv/
 env/
 .vscode/
 .VSCodeCounter/
+.cache
 
 # Ignore project folder
 /dataset/

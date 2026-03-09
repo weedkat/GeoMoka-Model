@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+      <url>
+        <loc>https://weedkat.github.io/GeoMoka-Model/</loc>
+      </url>
+      <url>
+        <loc>https://weedkat.github.io/GeoMoka-Model/getting-started/</loc>
+      </url>
+      <url>
+        <loc>https://weedkat.github.io/GeoMoka-Model/training-workflow/</loc>
+      </url>
+      <url>
+        <loc>https://weedkat.github.io/GeoMoka-Model/cli-reference/</loc>
+      </url>
+      <url>
+        <loc>https://weedkat.github.io/GeoMoka-Model/codebase-overview/</loc>
+      </url>
+</urlset>
